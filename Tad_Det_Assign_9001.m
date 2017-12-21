@@ -21,12 +21,14 @@ vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-fullVideo = zeros(vidH,vidW,numFrames);
+%fullVideo = zeros(vidH,vidW,numFrames); ---Only for saving full movie
+
 img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Reading and saving all frames of video to 3d matrix
 %Un-needed section, increases runtime 
+
 % for i = 1:numFrames
 %     vid_img = read(mov,i);
 %     fullVideo(:,:,i) = rgb2gray(vid_img);
@@ -64,16 +66,14 @@ clear i
 
 X = cell(1,numFrames); %detection X coordinate indice
 Y = cell(1,numFrames);  %detection Y coordinate indice
-tic;
+
 for i = 15:numFrames
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
     img = noDot_img(:,:,i); 
     sub_img = (img - bck_img);
 
-    %Blob Filtering (conv2 cuts runtime by >1s)
-    %blob_img = filter2(h,sub_img,'same');
-    
+    %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob
@@ -81,9 +81,6 @@ for i = 15:numFrames
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
-    %Switching to matlab built in function "max" saves >20s
-    
-    %[zmax,imax,zmin,imin] = extrema2(blob_img);
     [zmax,imax] = max(blob_img(:));
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
@@ -98,7 +95,7 @@ for i = 15:numFrames
 %     pause
      
 end
-toc
+
 save('raw_tad_detections.mat','X','Y')
 
 %% Clear Memory Before Assignment Begins
@@ -224,20 +221,21 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 %% Tracking of Dots Returning Radii/Centers 
 
 
-close all
+% close all
+% 
+% directory = uigetdir;
+% cd(directory);
+% moviename = uigetfile('*.mov');
+% folder = fullfile(directory);
+% movFullFile = fullfile(folder, moviename);
+% mov = VideoReader(movFullFile);
+% 
+% %video dimentions
+% numFrames = mov.NumberOfFrames;
+% vidH = mov.Height;
+% vidW = mov.Width;
 
-directory = uigetdir;
-cd(directory);
-moviename = uigetfile('*.mov');
-folder = fullfile(directory);
-movFullFile = fullfile(folder, moviename);
-mov = VideoReader(movFullFile);
-
-%video dimentions
-numFrames = mov.NumberOfFrames;
-vidH = mov.Height;
-vidW = mov.Width;
-
+%Cropping movie to remove false dot recognition
 ytop = 140;
 ybott = 910;
 xleft = 90;
@@ -249,7 +247,6 @@ for i = 90:numFrames
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
     croped_orig = orig_img(ytop:ybott,xleft:xright,:);
-    
     backg = imopen(croped_orig, strel('disk',23));
     minus_bck = croped_orig - backg;
     adj_mius = imadjust(minus_bck);
@@ -257,6 +254,7 @@ for i = 90:numFrames
     str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright,i) = str_mius;
 end
+
 Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
 Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
 
@@ -282,7 +280,8 @@ for i = 90:length(Q_loc_estimateX)
         
     end
     set(gca,'Ydir','reverse')
-    axis([0 1344 0 1024])
+    axis([1 1344 1 1024])
+    axis off
     pause(0.1)
     clf
 end
