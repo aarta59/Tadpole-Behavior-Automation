@@ -44,7 +44,6 @@ bck_img = (mean(img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
-tic;
 for i = 1:numFrames
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
@@ -52,7 +51,7 @@ for i = 1:numFrames
     noDot_tmp = orig_img - dot_str;
     noDot_img(:,:,i) = noDot_tmp;
 end
-toc
+
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
 
@@ -65,23 +64,28 @@ clear i
 
 X = cell(1,numFrames); %detection X coordinate indice
 Y = cell(1,numFrames);  %detection Y coordinate indice
-
+tic;
 for i = 15:numFrames
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
     img = noDot_img(:,:,i); 
     sub_img = (img - bck_img);
 
-    %Blob Filtering
-    blob_img = filter2(h,sub_img,'same');
+    %Blob Filtering (conv2 cuts runtime by >1s)
+    %blob_img = filter2(h,sub_img,'same');
     
+    blob_img = conv2(sub_img,h,'same');
+ 
     %Thresholding level for blob
     idx = find(blob_img < 0.03); 
     blob_img(idx) = nan;
     
-    %http://www.mathworks.com/matlabcentral/fileexchange/12275-extrema-m-extrema2-m
     %Finds peak indices for blobs
-    [zmax,imax,zmin,imin] = extrema2(blob_img);
+    %Switching to matlab built in function "max" saves >20s
+    
+    %[zmax,imax,zmin,imin] = extrema2(blob_img);
+    [zmax,imax] = max(blob_img(:));
+    
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
 
     %Plot of raw detections with threshold overlay
@@ -94,7 +98,7 @@ for i = 15:numFrames
 %     pause
      
 end
-
+toc
 save('raw_tad_detections.mat','X','Y')
 
 %% Clear Memory Before Assignment Begins
