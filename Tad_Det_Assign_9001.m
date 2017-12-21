@@ -271,7 +271,8 @@ for i = 90:length(Q_loc_estimateX)
     px = allcenter{i+14}(:,1) - allradius{i+14};
     py = allcenter{i+14}(:,2) - allradius{i+14};
     for j = 1:length(d)
-        h = rectangle('Position',[px(j) py(j) d(j) d(j)],'Curvature',[1,1],'FaceColor',[0,0,0]);
+        h = rectangle('Position',[px(j) py(j) d(j) d(j)],...
+            'Curvature',[1,1],'FaceColor',[0,0,0]);
         
     end
     set(gca,'Ydir','reverse')
