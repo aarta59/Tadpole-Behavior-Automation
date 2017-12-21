@@ -26,10 +26,11 @@ img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Reading and saving all frames of video to 3d matrix
-for i = 1:numFrames
-    vid_img = read(mov,i);
-    fullVideo(:,:,i) = vid_img(:,:,1);
-end
+%Un-needed section, increases runtime 
+% for i = 1:numFrames
+%     vid_img = read(mov,i);
+%     fullVideo(:,:,i) = rgb2gray(vid_img);
+% end
 
 %Taking Median of video frames
 for i = 1:numFrames
@@ -43,6 +44,7 @@ bck_img = (mean(img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
+tic;
 for i = 1:numFrames
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
@@ -50,7 +52,7 @@ for i = 1:numFrames
     noDot_tmp = orig_img - dot_str;
     noDot_img(:,:,i) = noDot_tmp;
 end
-
+toc
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
 
