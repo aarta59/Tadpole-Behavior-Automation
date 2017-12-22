@@ -3,6 +3,8 @@
 % imshow(im)
 %hold on 
 %plot(Y{190},X{190},'og')
+set(gcf,'Visible','off')
+
 for i = 90:length(Q_loc_estimateX)
     
 dz = 4*2;
@@ -14,7 +16,7 @@ mn = rectangle('Position',[zx zy dz dz],...
 set(gca,'Ydir','reverse')
 axis([1 1344 1 1024])
 axis off
-imgtad = getframe(gca);
+imgtad = getframe(gcf);
 imgtad = frame2im(imgtad);
 imgtad = rgb2gray(imgtad);
 fulltad(:,:,i) = imgtad;
@@ -40,7 +42,7 @@ for i = 90:length(Q_loc_estimateX)
     set(gca,'Ydir','reverse')
     axis([1 1344 1 1024])
     axis off
-    imgdot = getframe(gca);
+    imgdot = getframe(gcf);
     imgdot = frame2im(imgdot);
     imgdot = rgb2gray(imgdot);
     fullimgdot(:,:,i) = imgdot;
@@ -48,7 +50,14 @@ for i = 90:length(Q_loc_estimateX)
     clf
 end
 
+%% plot attempt (works but doesnt fill circles)
 
+% theta = 0:0.01:(2*pi);
+% [pline_x] = allradius{i}*cos(theta) + allcenter{i}(:,1);
+% [pline_y] = allradius{i}*sin(theta) + allcenter{i}(:,2);
+% plot(pline_x,pline_y,'.r');
+% set(gca,'Ydir','reverse');
+% axis off
 
 %%
 
@@ -56,7 +65,7 @@ end
 % imshow(mtchpix)
 for i = 90:length(Q_loc_estimateX)
 co_relate = corr2(fullimgdot(:,:,i),fulltad(:,:,i));
-imshowpair(fullimgdot(:,:,i),fulltad(:,:,i))
+%imshowpair(fullimgdot(:,:,i),fulltad(:,:,i))
 if co_relate > 0
     encounter = true
 else
