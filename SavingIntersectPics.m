@@ -63,13 +63,21 @@ end
 
 % mtchpix = (double(imgdot) - double(imgtad)) == 0;
 % imshow(mtchpix)
+clear frame encount
+
 for i = 90:length(Q_loc_estimateX)
-co_relate = corr2(fullimgdot(:,:,i),fulltad(:,:,i));
-%imshowpair(fullimgdot(:,:,i),fulltad(:,:,i))
-if co_relate > 0
-    encounter = true
-else
-    non_encounter = false
+    
+    co_relate = corr2(fullimgdot(:,:,i),fulltad(:,:,i));
+    %imshowpair(fullimgdot(:,:,i),fulltad(:,:,i))
+    if co_relate > 0
+       encounter = true;
+       c = i;
+     else
+       encounter = false;
+    end
+    
+       frame(i) = i;
+       encount(i) = encounter;        
 end
-pause
-end
+
+table(frame(:),encount(:))
