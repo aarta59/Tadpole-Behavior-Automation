@@ -294,6 +294,6 @@ save('dot_centers_radii.mat','allcenter','allradius')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % References:                                                                        %
 % Student Dave: https://www.youtube.com/channel/UCUxiT_SKEUs1oWT6i9P3vPQ             % 
-% http://www.mathworks.com/matlabcentral/fileexchange/12275-extrema-m-extrema2-m     %
+%                                                                                    %
 %                                                                                    %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
