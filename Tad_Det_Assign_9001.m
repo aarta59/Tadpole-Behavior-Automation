@@ -98,14 +98,6 @@ end
 
 save('raw_tad_detections.mat','X','Y')
 
-%% Clear Memory Before Assignment Begins
-
-
-
-%% Loading Detections Matrix
-
-%load('raw_tad_detections.mat')
-
 %% Kalman Filter Variable Definitions 
 
 dt = 1; %sampling rate
@@ -181,8 +173,7 @@ for t = s_frame:(numFrames)-1
     end
     
     asign = asign.*reject;
-    
-    
+        
     %Assign updated detections
     k = 1;
     for F = 1:length(asign)
@@ -220,6 +211,9 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 
 %% Tracking of Dots Returning Radii/Centers 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+% Following section only needs to run if mem. is cleared % 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % close all
 % 
@@ -234,6 +228,11 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 % numFrames = mov.NumberOfFrames;
 % vidH = mov.Height;
 % vidW = mov.Width;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                END MEM. CLEAR SECTION                 %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %Cropping movie to remove false dot recognition
 ytop = 140;
@@ -255,16 +254,32 @@ for i = 90:numFrames
     dotzeros(ytop:ybott,xleft:xright,i) = str_mius;
 end
 
-Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
-Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
+% prealocate cells for dot position storage
+allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
+allradius = cell(1,numFrames); %radius of each detected dot 
 
-allcenter = cell(1,numFrames);
-allradius = cell(1,numFrames);
 for i = 90:numFrames
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros(:,:,i),[8 15],...
         'ObjectPolarity','bright', 'Sensitivity',0.90);    
 end
- 
+
+%Save radii and centers of dots
+save('dot_centers_radii.mat','allcenter','allradius')
+
+%% Drawing Dots and Tadpoles
+%This section draws the dots and tadpoles onto figures
+%Figures are then saved into 3D matrices for correlation computation
+
+%Remove NaN values from position estimates
+Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
+Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
+
+%stops figures from showing on each loop iteration 
+set(gcf,'Visible','off')
+%to turn figures back on use [set(gcf,'Visible','on')]
+
+
+%Drawing dots from center and radii data
 for i = 90:length(Q_loc_estimateX)
 %     mov_img = read(mov,i+14);
 %     mov_img = rgb2gray(mov_img);
@@ -276,17 +291,105 @@ for i = 90:length(Q_loc_estimateX)
     py = allcenter{i+14}(:,2) - allradius{i+14};
     for j = 1:length(d)
         h = rectangle('Position',[px(j) py(j) d(j) d(j)],...
-            'Curvature',[1,1],'FaceColor',[0,0,0]);
-        
+            'Curvature',[1,1],'FaceColor',[0,0,0]);  
     end
     set(gca,'Ydir','reverse')
     axis([1 1344 1 1024])
     axis off
-    pause(0.1)
+    imgdot = getframe(gcf);
+    imgdot = frame2im(imgdot);
+    imgdot = rgb2gray(imgdot);
+    fullimgdot(:,:,i) = imgdot;
     clf
 end
 
-save('dot_centers_radii.mat','allcenter','allradius')   
+%%%%%%%CHANGES-TO-MAKE-ABOVE%%%%%%%%%%%%%
+% NEED TO PREALLOCATE FOR FULLIMGDOT    % 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+for i = 90:length(Q_loc_estimateX)
+    
+dz = 4*2;
+zx = Q_loc_estimateY(i) - 4;
+zy = Q_loc_estimateX(i) - 4;
+
+mn = rectangle('Position',[zx zy dz dz],...
+    'Curvature',[1,1],'FaceColor',[0,0,0]);
+set(gca,'Ydir','reverse')
+axis([1 1344 1 1024])
+axis off
+imgtad = getframe(gcf);
+imgtad = frame2im(imgtad);
+imgtad = rgb2gray(imgtad);
+fulltad(:,:,i) = imgtad;
+clf
+end
+
+%%%%%%%CHANGES-TO-MAKE-ABOVE%%%%%%%%%%%%%
+% NEED TO PREALLOCATE FOR FULLTAD       % 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Compute correlation of dots and tadpole images
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This section could be used to find location of intersection %
+%                                                             %
+% mtchpix = (double(imgdot) - double(imgtad)) == 0;           % 
+% imshow(mtchpix)                                             %
+% clear frame encount                                         %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% this loop computes correlation of images
+% negative correlation means dot and tadpole are far
+% positive correlation means dot and tadpole intersect
+for i = 90:length(Q_loc_estimateX)
+    
+    co_relate = corr2(fullimgdot(:,:,i),fulltad(:,:,i));
+    %imshowpair(fullimgdot(:,:,i),fulltad(:,:,i))
+    if co_relate > 0
+       encounter = true;
+       c = i;
+     else
+       encounter = false;
+    end
+    
+       frame(i) = i;
+       encount(i) = encounter;        
+end
+
+table(frame(:),encount(:))
+
+% to continue this section the best thing may be adding another if statment
+% after encounter = true saying look at next "X" amount of frames to see if
+% either velocity or angle changes
+
+%% TO DO LIST
+
+% 1) project average position for tadpole eyes instead of tracking gut
+% 2) make check in correlation section for angle of tadpole (+/- 15 deg)
+% 3) compute velocity of tadpole over range of video
+% 4) go back to kalman filter section and cut out unnecessary code
+% 5) possibly skip kalman filter and only use Munkres algo
+
+
+%% Plot circles instead of drawing
+
+% [This will most likely be deleted in final revision] 
+
+% functional, could be used instead of correlation method
+% by finding if tadpole comes within certain distance from
+% the computed points below
+
+% theta = 0:0.01:(2*pi);
+% [pline_x] = allradius{i}*cos(theta) + allcenter{i}(:,1);
+% [pline_y] = allradius{i}*sin(theta) + allcenter{i}(:,2);
+% plot(pline_x,pline_y,'.r');
+% set(gca,'Ydir','reverse');
+% axis off
+
+
+
 
 
 
