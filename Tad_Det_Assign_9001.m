@@ -192,18 +192,18 @@ for t = s_frame:(numFrames)-1
 
     %img = imread(f_list(t).name);
     %imshow(img);
-    hold on;
+    %hold on;
     
     %plot(Y{t}(:), X{t}(:), 'or'); %actual track plot
     
-    c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-    set(gca, 'Ydir', 'reverse')
-    for Dc = 1:numF
-        if ~isnan(Q_loc_estimateX(t,Dc))
-            Cz = mod(Dc,6)+1;
-            plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
-        end
-    end
+%     c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
+%     set(gca, 'Ydir', 'reverse')
+%     for Dc = 1:numF
+%         if ~isnan(Q_loc_estimateX(t,Dc))
+%             Cz = mod(Dc,6)+1;
+%             plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
+%         end
+%     end
 end
     
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
@@ -240,7 +240,17 @@ ybott = 910;
 xleft = 90;
 xright = 1250;
 
-dotzeros = uint8(zeros(vidH,vidW,numFrames));
+% prealocate cells for dot position storage
+allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
+allradius = cell(1,numFrames); %radius of each detected dot 
+dotzeros = uint8(zeros(vidH,vidW));
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% only reason to reoverlay image on zeros is to show %
+% the dots on the original image. In final revision  %
+% remove the dotzeros part and move straight to next %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 for i = 90:numFrames
     orig_img = read(mov,i);
@@ -251,15 +261,9 @@ for i = 90:numFrames
     adj_mius = imadjust(minus_bck);
     str_mius = imopen(adj_mius, strel('disk',4));
     str_mius = str_mius*2;
-    dotzeros(ytop:ybott,xleft:xright,i) = str_mius;
-end
+    dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
-% prealocate cells for dot position storage
-allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
-allradius = cell(1,numFrames); %radius of each detected dot 
-
-for i = 90:numFrames
-    [allcenter{i}, allradius{i}] = imfindcircles(dotzeros(:,:,i),[8 15],...
+    [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[8 15],...
         'ObjectPolarity','bright', 'Sensitivity',0.90);    
 end
 
@@ -284,8 +288,8 @@ for i = 90:length(Q_loc_estimateX)
 %     mov_img = read(mov,i+14);
 %     mov_img = rgb2gray(mov_img);
 %     imshow(mov_img)
-    hold on
-    plot(Q_loc_estimateY(i),Q_loc_estimateX(i),'og')
+%     hold on
+%     plot(Q_loc_estimateY(i),Q_loc_estimateX(i),'og')
     d = allradius{i+14}*2;
     px = allcenter{i+14}(:,1) - allradius{i+14};
     py = allcenter{i+14}(:,2) - allradius{i+14};
@@ -371,6 +375,7 @@ table(frame(:),encount(:))
 % 3) compute velocity of tadpole over range of video
 % 4) go back to kalman filter section and cut out unnecessary code
 % 5) possibly skip kalman filter and only use Munkres algo
+% 6) way to correlate matrices without re-saving images from figures
 
 
 %% Plot circles instead of drawing
