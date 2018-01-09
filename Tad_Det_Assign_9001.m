@@ -207,7 +207,14 @@ for t = s_frame:(numFrames)-1
     end
     pause
 end
-    
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                               ERROR ERROR                              %
+%    BOTTOM RIGHT TADPOLE GOES OUT OF DETECTION FOR A FEW FRAMES         %
+%    CAUSING PLOT TO BE INCORRECT WITH COLORS. CHECK IF THIS IS ISSUE IN %
+%    LATER CALCULATIONS                                                  %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
 
 
