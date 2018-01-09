@@ -77,11 +77,12 @@ for i = 15:numFrames
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob
-    idx = find(blob_img < 0.03); 
+    idx = find(blob_img < 0.031); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
-    [zmax,imax] = max(blob_img(:));
+    %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
+    [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
 
@@ -92,7 +93,7 @@ for i = 15:numFrames
 %        plot(Y{i}(j),X{i}(j),'or')
 %     end
 %     axis off
-%     pause
+%     pause(0.05)
      
 end
 
@@ -191,19 +192,20 @@ for t = s_frame:(numFrames)-1
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
 
     %img = imread(f_list(t).name);
-    %imshow(img);
-    %hold on;
+%     imagesc(noDot_img(:,:,t));
+    hold on;
     
     %plot(Y{t}(:), X{t}(:), 'or'); %actual track plot
     
-%     c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-%     set(gca, 'Ydir', 'reverse')
-%     for Dc = 1:numF
-%         if ~isnan(Q_loc_estimateX(t,Dc))
-%             Cz = mod(Dc,6)+1;
-%             plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
-%         end
-%     end
+    c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
+    set(gca, 'Ydir', 'reverse')
+    for Dc = 1:numF
+        if ~isnan(Q_loc_estimateX(t,Dc))
+            Cz = mod(Dc,6)+1;
+            plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
+        end
+    end
+    pause
 end
     
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
