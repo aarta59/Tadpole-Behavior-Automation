@@ -1,7 +1,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                        Tadpole Tracker 9000                           %
+%                              TAD9000                                  %
 %                 Christopher Marshall, November 2017                   %
-%            For Cline Lab, Dorris Center for Neuroscience              %
+%              Cline Lab, Dorris Center for Neuroscience                %
 %           Scripps Research Institute, La Jolla, California            %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -21,18 +21,8 @@ vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-%fullVideo = zeros(vidH,vidW,numFrames); ---Only for saving full movie
-
 img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
-
-%Reading and saving all frames of video to 3d matrix
-%Un-needed section, increases runtime 
-
-% for i = 1:numFrames
-%     vid_img = read(mov,i);
-%     fullVideo(:,:,i) = rgb2gray(vid_img);
-% end
 
 %Taking Median of video frames
 for i = 1:numFrames
@@ -66,7 +56,7 @@ clear i
 
 X = cell(1,numFrames); %detection X coordinate indice
 Y = cell(1,numFrames);  %detection Y coordinate indice
-
+%XY_pts = cell(300,1); %X and Y coordinate indice
 for i = 15:numFrames
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
@@ -77,23 +67,26 @@ for i = 15:numFrames
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob
-    idx = find(blob_img < 0.031); 
+    idx = find(blob_img < 0.03); 
     blob_img(idx) = nan;
+    
     
     %Finds peak indices for blobs
     %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
     [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
-
+    %XY_pts{i} = [X{i} Y{i}];
+    
+    
     %Plot of raw detections with threshold overlay
-%     imagesc(blob_img)
-%     hold on
-%     for j = 1:length(X{i})
-%        plot(Y{i}(j),X{i}(j),'or')
-%     end
-%     axis off
-%     pause(0.05)
+    %imagesc(blob_img)
+    hold on
+    for j = 1:length(X{i})
+       plot(Y{i}(j),X{i}(j),'or')
+    end
+    axis off
+%     pause
      
 end
 
@@ -167,7 +160,7 @@ for t = s_frame:(numFrames)-1
     
     for F = 1:numF
         if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 50;
+            reject(F) = est_dist(F,asign(F)) < 100;
         else
             reject(F) = 0;
         end
@@ -191,7 +184,6 @@ for t = s_frame:(numFrames)-1
     Q_loc_estimateX(t,1:numF) = Q_est(1,1:numF);
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
 
-    %img = imread(f_list(t).name);
 %     imagesc(noDot_img(:,:,t));
     hold on;
     
@@ -205,7 +197,7 @@ for t = s_frame:(numFrames)-1
             plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
         end
     end
-    pause
+    pause(0.05)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
