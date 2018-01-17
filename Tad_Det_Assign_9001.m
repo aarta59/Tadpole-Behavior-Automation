@@ -67,7 +67,7 @@ for i = 15:numFrames
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob
-    idx = find(blob_img < 0.03); 
+    idx = find(blob_img < 0.032); 
     blob_img(idx) = nan;
     
     
@@ -81,11 +81,11 @@ for i = 15:numFrames
     
     %Plot of raw detections with threshold overlay
     %imagesc(blob_img)
-    hold on
-    for j = 1:length(X{i})
-       plot(Y{i}(j),X{i}(j),'or')
-    end
-    axis off
+%     hold on
+%     for j = 1:length(X{i})
+%        plot(Y{i}(j),X{i}(j),'or')
+%     end
+%     axis off
 %     pause
      
 end
@@ -99,9 +99,9 @@ s_frame = 15; %detection starting frame
 
 
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 1; %variability in tadpole speed [=]m/s^2
-tmn_x = 0.1; %noise in horizontal direction, x-axis
-tmn_y = 0.1; %noise in vertical direction, y-axis
+Tanod_noise_mag = 400; %variability in tadpole speed [=]m/s^2
+tmn_x = 400; %noise in horizontal direction, x-axis
+tmn_y = 400; %ise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -125,12 +125,10 @@ Q_est = nan(4,2000);
 Q_est(:,1:size(Q,2)) = Q; %initial location estimate
 Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
-P_estimate = P;
 numDet = size(X{s_frame},1); %number of detections
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
 
-
-for t = s_frame:(numFrames)-1
+for t = s_frame:numFrames
     
     %load detections matrix
     Q_loc_measure = [X{t} Y{t}];
@@ -145,7 +143,7 @@ for t = s_frame:(numFrames)-1
     P = A * P * A' + Ex;
     
     %Kalman gain
-    K = P * C' * inv(C * P * C' + Ez);
+    K = (P * C')/(C * P * C' + Ez);
     
     %Assign detections (Hungarian/Munkres Algorithm)
     est_dist = pdist([Q_est(1:2,1:numF)'; Q_loc_measure]);
@@ -160,7 +158,7 @@ for t = s_frame:(numFrames)-1
     
     for F = 1:numF
         if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 100;
+            reject(F) = est_dist(F,asign(F)) < 250;
         else
             reject(F) = 0;
         end
@@ -184,20 +182,24 @@ for t = s_frame:(numFrames)-1
     Q_loc_estimateX(t,1:numF) = Q_est(1,1:numF);
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
 
+    Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
+    Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
+     
+
 %     imagesc(noDot_img(:,:,t));
-    hold on;
-    
-    %plot(Y{t}(:), X{t}(:), 'or'); %actual track plot
-    
-    c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-    set(gca, 'Ydir', 'reverse')
-    for Dc = 1:numF
-        if ~isnan(Q_loc_estimateX(t,Dc))
-            Cz = mod(Dc,6)+1;
-            plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
-        end
-    end
-    pause(0.05)
+%     hold on;
+%     
+%     %plot(Y{t}(:), X{t}(:), 'or'); %actual track plot
+%     
+%     c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
+%     set(gca, 'Ydir', 'reverse')
+%     for Dc = 1:numF
+%         if ~isnan(Q_loc_estimateX(t,Dc))
+%             Cz = mod(Dc,6)+1;
+%             plot(Q_loc_estimateY(t,Dc), Q_loc_estimateX(t,Dc),'o','color',c_list(Cz))
+%         end
+%     end
+%    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -209,6 +211,21 @@ end
 
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
 
+%% Plots location estimates
+
+figure
+hold on
+axis off
+set(gca,'YDir','reverse')
+c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
+for j = 1:numFrames
+    for i = 1:6
+        cz = mod(i,6)+1;
+        plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
+    end
+  pause
+end
+    
 
 %% Tracking of Dots Returning Radii/Centers 
 
