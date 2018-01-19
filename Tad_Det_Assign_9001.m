@@ -8,6 +8,7 @@
 clear
 close all
 
+%Choose location of video and file to be run
 directory = uigetdir;
 cd(directory);
 moviename = uigetfile('*.mov');
@@ -15,7 +16,7 @@ folder = fullfile(directory);
 movFullFile = fullfile(folder, moviename);
 mov = VideoReader(movFullFile);
 
-%video dimentions
+%Video dimentions
 numFrames = mov.NumberOfFrames;
 vidH = mov.Height;
 vidW = mov.Width;
@@ -54,13 +55,17 @@ h = fspecial('log', hsizeh, sigmah);
 clear i
 %% Iteratively finding tadpoles from blobs
 
-X = cell(1,numFrames); %detection X coordinate indice
-Y = cell(1,numFrames);  %detection Y coordinate indice
-%XY_pts = cell(300,1); %X and Y coordinate indice
-for i = 15:numFrames
+%Starting frame for detection (start at 15 for even brightness)
+s_frame = 15;
+
+%Initialize cells for detection coordinates
+X = cell(1,numFrames-s_frame); %detection X coordinate 
+Y = cell(1,numFrames-s_frame);  %detection Y coordinate 
+
+for i = 1:numFrames-s_frame
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
-    img = noDot_img(:,:,i); 
+    img = noDot_img(:,:,i+(s_frame-1)); 
     sub_img = (img - bck_img);
 
     %Blob Filtering
@@ -76,8 +81,6 @@ for i = 15:numFrames
     [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
-    %XY_pts{i} = [X{i} Y{i}];
-    
     
     %Plot of raw detections with threshold overlay
     %imagesc(blob_img)
@@ -94,14 +97,12 @@ save('raw_tad_detections.mat','X','Y')
 
 %% Kalman Filter Variable Definitions 
 
+
 dt = 1; %sampling rate
-s_frame = 15; %detection starting frame
-
-
 u = 0; %starting acceleration magnitude 
-Tanod_noise_mag = 400; %variability in tadpole speed [=]m/s^2
-tmn_x = 400; %noise in horizontal direction, x-axis
-tmn_y = 400; %ise in vertical direction, y-axis
+Tad_noise_mag = 2; %variability in tadpole speed 
+tmn_x = 0.05; %noise in horizontal direction, x-axis
+tmn_y = 0.05; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -120,15 +121,15 @@ C = [1 0 0 0; 0 1 0 0];
 Q_loc_measure = [];
 
 %Initialize estimations in 2-D
-Q = [X{s_frame} Y{s_frame} zeros(length(X{s_frame}),1) zeros(length(X{s_frame}),1)]';
+Q = [X{1} Y{1} zeros(length(X{1}),1) zeros(length(X{1}),1)]';
 Q_est = nan(4,2000);
 Q_est(:,1:size(Q,2)) = Q; %initial location estimate
 Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
-numDet = size(X{s_frame},1); %number of detections
+numDet = size(X{1},1); %number of detections
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
 
-for t = s_frame:numFrames
+for t = 1:length(X)
     
     %load detections matrix
     Q_loc_measure = [X{t} Y{t}];
@@ -158,7 +159,7 @@ for t = s_frame:numFrames
     
     for F = 1:numF
         if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 250;
+            reject(F) = est_dist(F,asign(F)) < 100;
         else
             reject(F) = 0;
         end
@@ -181,7 +182,8 @@ for t = s_frame:numFrames
     %Store Data
     Q_loc_estimateX(t,1:numF) = Q_est(1,1:numF);
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
-
+    
+    %Remove nan values and store 
     Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
      
@@ -202,24 +204,20 @@ for t = s_frame:numFrames
 %    
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                               ERROR ERROR                              %
-%    BOTTOM RIGHT TADPOLE GOES OUT OF DETECTION FOR A FEW FRAMES         %
-%    CAUSING PLOT TO BE INCORRECT WITH COLORS. CHECK IF THIS IS ISSUE IN %
-%    LATER CALCULATIONS                                                  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
 
 %% Plots location estimates
+
+%get dimentions of location estimates
+[numPositions, numDetections] = size(Q_loc_estimateX);
 
 figure
 hold on
 axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 1:numFrames
-    for i = 1:6
+for j = 1:numPositions
+    for i = 1:numDetections
         cz = mod(i,6)+1;
         plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
     end
