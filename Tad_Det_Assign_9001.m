@@ -55,14 +55,19 @@ h = fspecial('log', hsizeh, sigmah);
 clear i
 %% Iteratively finding tadpoles from blobs
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% GOTTA RE INDEX SOMETHING IS WRONG AF
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
 
 %Initialize cells for detection coordinates
-X = cell(1,numFrames-s_frame); %detection X coordinate 
-Y = cell(1,numFrames-s_frame);  %detection Y coordinate 
+X = cell(1,numFrames-(s_frame-1)); %detection X coordinate 
+Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
-for i = 1:numFrames-s_frame
+for i = 1:numFrames-(s_frame-1)
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
@@ -265,25 +270,25 @@ end
 %Save radii and centers of dots
 save('dot_centers_radii.mat','allcenter','allradius')
 
-%% Drawing Dots and Tadpoles
-%This section draws the dots and tadpoles onto figures
-%Figures are then saved into 3D matrices for correlation computation
 
-%stops figures from showing on each loop iteration 
+%% Drawing dots and tadpoles then computing correlation 
+
+%sizing location matrix (index starts at frame 15)
+[fnumber, tadnumber] = size(Q_loc_estimateX);
+
+%plots not visible
 set(gcf,'Visible','off')
-%to turn figures back on use [set(gcf,'Visible','on')]
 
-fulltad = uint8(zeros(420,560,length(Q_loc_estimateX)));
-fullimgdot = uint8(zeros(420,560,length(Q_loc_estimateX)));
 %Drawing dots from center and radii data
-for i = 90:length(Q_loc_estimateX)
+frame = zeros(numFrames-89,1);
+encount = false(numFrames-89,tadnumber);
+for i = 90:numFrames
     mov_img = read(mov,i);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    plot(Q_loc_estimateY(i-14,1),Q_loc_estimateX(i-14,1),'og')
-    
-    
+    plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
+pause
     d = allradius{i}*2;
     px = allcenter{i}(:,1) - allradius{i};
     py = allcenter{i}(:,2) - allradius{i};
@@ -297,38 +302,54 @@ for i = 90:length(Q_loc_estimateX)
     imgdot = getframe(gcf);
     imgdot = frame2im(imgdot);
     imgdot = rgb2gray(imgdot);
-    fullimgdot(:,:,i) = imgdot;
-    pause
     clf
-end
-
-
-for i = 90:length(Q_loc_estimateX)
     
-dz = 4*2;
-zx = Q_loc_estimateY(i-14,1) - 4;
-zy = Q_loc_estimateX(i-14,1) - 4;
+    for k = 1:tadnumber
+        dz = 4*2;
+        zx = Q_loc_estimateY(i-14,k) - 4;
+        zy = Q_loc_estimateX(i-14,k) - 4;
 
-mn = rectangle('Position',[zx zy dz dz],...
-    'Curvature',[1,1],'FaceColor',[0,0,0]);
-set(gca,'Ydir','reverse')
-axis([1 1344 1 1024])
-axis off
-imgtad = getframe(gcf);
-imgtad = frame2im(imgtad);
-imgtad = rgb2gray(imgtad);
-fulltad(:,:,i) = imgtad;
+        mn = rectangle('Position',[zx zy dz dz],...
+            'Curvature',[1,1],'FaceColor',[0,0,0]);
+        set(gca,'Ydir','reverse')
+        axis([1 1344 1 1024])
+        axis off
+        imgtad = getframe(gcf);
+        imgtad = frame2im(imgtad);
+        imgtad = rgb2gray(imgtad);
+        clf
+        
+        %corr2 shows when tadpole crosses dot
+        co_relate = corr2(imgdot,imgtad);
+        
+        %imshowpair(imgdot,imgtad) %shows picture of tad/dot
+        
+        % negative correlation means dot and tadpole are far
+        % positive correlation means dot and tadpole intersect
+        if co_relate > 0
+            encounter = true;
+        else
+            encounter = false;
+        end
 
-clf
+            frame(i-89,1) = i;
+            encount(i-89,k) = encounter;
+
+    end
+       
+       
 end
+
+%index for frames and encounters starts at frame 90 (where dots begin)
+
+framesAndEncounters = [frame encount];
+save('frame_number_and_encounter.mat','frameAndEncounters')
 
 %%%%%%%%%%%%%%%%%-NOTES-%%%%%%%%%%%%%%%%%
 % location estimates are frame-14 off   %
 % of dot drawing due to re-indexing of  %
 % locations starting at 1 (prev at 15)  %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Compute correlation of dots and tadpole images
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % This section could be used to find location of intersection %
@@ -338,32 +359,7 @@ end
 % clear frame encount                                         %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-% this loop computes correlation of images
-% negative correlation means dot and tadpole are far
-% positive correlation means dot and tadpole intersect
-for i = 90:length(Q_loc_estimateX)
-    
-    co_relate = corr2(fullimgdot(:,:,i),fulltad(:,:,i));
-    %imshowpair(fullimgdot(:,:,i),fulltad(:,:,i-14))
-    if co_relate > 0
-       encounter = true;
-    else
-       encounter = false;
-    end
-    
-    
-       frame(i) = i;
-       encount(i) = encounter;        
-end
-
-table(frame(:),encount(:))
-
-%                           NOTES ON ABOVE SECTION
-% to continue this section the best thing may be adding another if statment
-% after encounter = true saying look at next "X" amount of frames to see if
-% either velocity or angle changes
-
+%% Visual Check if encounter occured
 
 % Below is just a simple check to see if the encounter actually did occur
 for i = 90:length(Q_loc_estimateX)
@@ -376,6 +372,111 @@ for i = 90:length(Q_loc_estimateX)
     pause
     
 end
+
+%% Logic for angle checking and velocity checking
+
+%just reading and saving movie for later checking 
+
+tadmov = zeros(vidH,vidW,numFrames);
+for i = 1:numFrames
+    img = read(mov,i);
+    img = rgb2gray(img);
+    tadmov(:,:,i) = img;
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                            %
+% Index of angle logicals starts at frame 15 %
+%                                            %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+clippedX = Q_loc_estimateX(90:end,:);
+clippedY = Q_loc_estimateY(90:end,:);
+
+[frme, tads] = size(clippedX);
+
+%difference between 1 and 2 frames
+xdiff1 = diff(clippedX);
+ydiff1 = diff(clippedY);
+
+%gets angles between X(2:n,:) - X(1:n-1,:) and Y_diff
+tad_angles1 = atan2d(xdiff1, ydiff1);
+
+%take absoulte value of angles because direction of movment doesnt matter
+%only looking for tadpole 180+/-15 and 0+/-15 (0+/-15 same as abs(15))
+tad_angles1 = abs(tad_angles1);
+
+
+%logical array of angles betweent 180+/-15 and 0+/-15 degrees
+logicaltad1 = ((tad_angles1 > 1)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 195));
+
+%difference between 2 and 3 frames
+xdiff2 = clippedX(3:length(clippedX),:) - clippedX(2:length(clippedX)-1,:);
+ydiff2 = clippedY(3:length(clippedY),:) - clippedY(2:length(clippedY)-1,:);
+
+%angles between second and third frames
+tad_angles2 = atan2d(xdiff2, ydiff2);
+tad_angles2 = abs(tad_angles2);
+
+
+logicaltad2 = ((tad_angles2 > 1) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 195));
+
+%pads bottom of logical with ones to make it the same size as logical_tad
+%assumes that if tad was within angle in 2 frames it is in 3
+logicaltad2 = [ones(1,tads); logicaltad2];
+
+%within 1 and 2 frames is angle correct?
+within2fr = logicaltad2.*logicaltad1;
+
+%checks velocity of tadpole
+f_rate = 15; %f/s
+t_disp = 1/f_rate; %sec (time between frames)
+
+
+Vx = xdiff1./t_disp;
+Vy = ydiff1./t_disp;
+
+%velocity [=] pixels/second
+Vtot = sqrt(Vx.^2 + Vy.^2);
+
+%logic check for velocity less than 10000 and greater than 10 pix/sec
+velLogic = (Vtot > 10) & (Vtot < 10000);
+
+%here is if the angle for 3 frames is ok and the velocity is within range
+within2frAndVelocity = velLogic.*within2fr;
+
+%pads bottom with zeros assumes last frame velocity and angles are 0
+within2frAndVelocity = [within2frAndVelocity; zeros(1,tads)];
+
+actualEncounters = frameAndEncounters(:,2:end).*within2frAndVelocity;
+
+actualFramesAndEncount = [frameAndEncounters(:,1) actualEncounters];
+
+%really just need to know if tadpole is moving within specified angles
+%for at least 3 frames might need to interpolate between to get more
+%accurate picture of if tadpole is moving correct direction
+
+%loop just shows plot of points along with the actual image of 1 tadpole
+whichone = 2;
+
+for i = 1:frme
+    imagesc(tadmov(:,:,i+103))
+
+    hold on
+    plot(clippedY(i,whichone),clippedX(i,whichone),'or')
+    plot(clippedY(i+1,whichone),clippedX(i+1,whichone),'og')
+    plot(clippedY(i+2,whichone),clippedX(i+2,whichone),'oc')
+    title(['frame: ' num2str(i+103) ' encounter?: ' num2str(actualEncounters(i,whichone)) ' angle?: ' num2str(within2frAndVelocity(i,whichone))])
+    set(gca,'YDir','reverse')
+    axis off
+   % axis([1 1344 1 1024])
+    
+    pause
+end
+
+
 
 %% TO DO LIST
 %               MOST IMPORTANT
