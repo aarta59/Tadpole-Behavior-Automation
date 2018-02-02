@@ -52,13 +52,7 @@ hsizeh = 60;
 sigmah = 8;   
 h = fspecial('log', hsizeh, sigmah);
 
-clear i
 %% Iteratively finding tadpoles from blobs
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% GOTTA RE INDEX SOMETHING IS WRONG AF
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
@@ -226,7 +220,7 @@ for j = 1:numPositions
     for i = 1:numDetections
         cz = mod(i,6)+1;
         plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
-        clf
+        
     end
   pause
 end
@@ -280,15 +274,16 @@ save('dot_centers_radii.mat','allcenter','allradius')
 set(gcf,'Visible','off')
 
 %Drawing dots from center and radii data
-frame = zeros(numFrames-89,1);
-encount = false(numFrames-89,tadnumber);
+% frame = zeros(numFrames-89,1);
+% encount = false(numFrames-89,tadnumber);
+
 for i = 90:numFrames
-    mov_img = read(mov,i);
-    mov_img = rgb2gray(mov_img);
-    imshow(mov_img)
-    hold on
-    plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
-pause
+%     mov_img = read(mov,i);
+%     mov_img = rgb2gray(mov_img);
+%     imshow(mov_img)
+%     hold on
+%     plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
+
     d = allradius{i}*2;
     px = allcenter{i}(:,1) - allradius{i};
     py = allcenter{i}(:,2) - allradius{i};
