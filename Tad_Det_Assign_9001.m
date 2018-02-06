@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                              TAD9000                                  %
+%                             T.A.D.9000                                %
 %                 Christopher Marshall, November 2017                   %
 %              Cline Lab, Dorris Center for Neuroscience                %
 %           Scripps Research Institute, La Jolla, California            %
@@ -61,12 +61,14 @@ s_frame = 15;
 X = cell(1,numFrames-(s_frame-1)); %detection X coordinate 
 Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
-for i = 1:numFrames-(s_frame-1)
+for i = 1:numFrames-(s_frame-1)-500
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
     sub_img = (img - bck_img);
 
+   
+    
     %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
@@ -74,7 +76,7 @@ for i = 1:numFrames-(s_frame-1)
     idx = find(blob_img < 0.032); 
     blob_img(idx) = nan;
     
-    
+   
     %Finds peak indices for blobs
     %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
     [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
@@ -82,12 +84,13 @@ for i = 1:numFrames-(s_frame-1)
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
     %Plot of raw detections with threshold overlay
-    %imagesc(blob_img)
+%     imagesc(blob_img)
 %     hold on
 %     for j = 1:length(X{i})
 %        plot(Y{i}(j),X{i}(j),'or')
 %     end
 %     axis off
+%     
 %     pause
      
 end
@@ -216,13 +219,12 @@ hold on
 axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 1:numPositions
+for j = 77:numPositions-500
     for i = 1:numDetections
         cz = mod(i,6)+1;
         plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
-        
     end
-  pause
+    pause
 end
     
 
@@ -248,7 +250,7 @@ dotzeros = uint8(zeros(vidH,vidW));
 
 for i = 90:numFrames
     orig_img = read(mov,i);
-    orig_img = rgb2gray(orig_img);all
+    orig_img = rgb2gray(orig_img);
     croped_orig = orig_img(ytop:ybott,xleft:xright,:);
     backg = imopen(croped_orig, strel('disk',23));
     minus_bck = croped_orig - backg;
@@ -278,11 +280,11 @@ set(gcf,'Visible','off')
 % encount = false(numFrames-89,tadnumber);
 
 for i = 90:numFrames
-%     mov_img = read(mov,i);
-%     mov_img = rgb2gray(mov_img);
-%     imshow(mov_img)
-%     hold on
-%     plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
+    mov_img = read(mov,i);
+    mov_img = rgb2gray(mov_img);
+    imshow(mov_img)
+    hold on
+    plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
 
     d = allradius{i}*2;
     px = allcenter{i}(:,1) - allradius{i};
@@ -317,8 +319,6 @@ for i = 90:numFrames
         %corr2 shows when tadpole crosses dot
         co_relate = corr2(imgdot,imgtad);
         
-        %imshowpair(imgdot,imgtad) %shows picture of tad/dot
-        
         % negative correlation means dot and tadpole are far
         % positive correlation means dot and tadpole intersect
         if co_relate > 0
@@ -331,8 +331,7 @@ for i = 90:numFrames
             encount(i-89,k) = encounter;
 
     end
-       
-       
+
 end
 
 %index for frames and encounters starts at frame 90 (where dots begin)
@@ -378,17 +377,12 @@ for i = 1:numFrames
     img = rgb2gray(img);
     tadmov(:,:,i) = img;
 end
+tadmov = uint8(tadmov);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                                            %
-% Index of angle logicals starts at frame 15 %
-%                                            %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-
-clippedX = Q_loc_estimateX(90:end,:);
-clippedY = Q_loc_estimateY(90:end,:);
+clippedX = Q_loc_estimateX(76:end,:);
+clippedY = Q_loc_estimateY(76:end,:);
 
 [frme, tads] = size(clippedX);
 
@@ -456,31 +450,33 @@ actualFramesAndEncount = [frameAndEncounters(:,1) actualEncounters];
 %loop just shows plot of points along with the actual image of 1 tadpole
 whichone = 2;
 
-for i = 1:frme
-    imagesc(tadmov(:,:,i+103))
 
+for i = 1:frme-500
+    imshow(tadmov(:,:,i+89))
     hold on
-    plot(clippedY(i,whichone),clippedX(i,whichone),'or')
-    plot(clippedY(i+1,whichone),clippedX(i+1,whichone),'og')
-    plot(clippedY(i+2,whichone),clippedX(i+2,whichone),'oc')
-    title(['frame: ' num2str(i+103) ' encounter?: ' num2str(actualEncounters(i,whichone)) ' angle?: ' num2str(within2frAndVelocity(i,whichone))])
+        for k = 1:tads
+            plot(clippedY(i,k),clippedX(i,k),'or')
+            plot(clippedY(i+1,k),clippedX(i+1,k),'og')
+            plot(clippedY(i+2,k),clippedX(i+2,k),'oc')
+            %title(['frame: ' num2str(i+103) ' encounter?: ' num2str(actualEncounters(i,whichone)) ' angle?: ' num2str(within2frAndVelocity(i,whichone))])
+        end
     set(gca,'YDir','reverse')
     axis off
    % axis([1 1344 1 1024])
-    
     pause
+    
 end
 
 
 
 %% TO DO LIST
 %               MOST IMPORTANT
-% 1) make check in correlation section for angle of tadpole (+/- 15 deg)
+% 1)check for angle of tadpole parallel to X (+/- 15 deg)(DONE)
 
 %               Later Work
-% 2) compute velocity of tadpole over range of video
+% 2) compute velocity of tadpole over range of video (DONE)
 % 3) way to correlate matrices without re-saving images from figures
-% 4) save image and frame number of encounter for later checking
+% 4) save image and frame number of encounter for later checking (DONE)
 % 5) project average position for tadpole eyes instead of tracking gut
 %   5a) dont need this if you know direction tadpole moves in
 
