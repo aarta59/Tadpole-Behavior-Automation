@@ -280,11 +280,11 @@ set(gcf,'Visible','off')
 % encount = false(numFrames-89,tadnumber);
 
 for i = 90:numFrames
-    mov_img = read(mov,i);
-    mov_img = rgb2gray(mov_img);
-    imshow(mov_img)
-    hold on
-    plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
+%     mov_img = read(mov,i);
+%     mov_img = rgb2gray(mov_img);
+%     imshow(mov_img)
+%     hold on
+%     plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
 
     d = allradius{i}*2;
     px = allcenter{i}(:,1) - allradius{i};
@@ -337,7 +337,7 @@ end
 %index for frames and encounters starts at frame 90 (where dots begin)
 
 framesAndEncounters = [frame encount];
-save('frame_number_and_encounter.mat','frameAndEncounters')
+save('frame_number_and_encounter.mat','framesAndEncounters')
 
 %%%%%%%%%%%%%%%%%-NOTES-%%%%%%%%%%%%%%%%%
 % location estimates are frame-14 off   %
@@ -369,18 +369,7 @@ end
 
 %% Logic for angle checking and velocity checking
 
-%just reading and saving movie for later checking 
-
-tadmov = zeros(vidH,vidW,numFrames);
-for i = 1:numFrames
-    img = read(mov,i);
-    img = rgb2gray(img);
-    tadmov(:,:,i) = img;
-end
-tadmov = uint8(tadmov);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%Clipping X and Y positions so at index 1, frame is 90
 clippedX = Q_loc_estimateX(76:end,:);
 clippedY = Q_loc_estimateY(76:end,:);
 
@@ -399,7 +388,7 @@ tad_angles1 = abs(tad_angles1);
 
 
 %logical array of angles betweent 180+/-15 and 0+/-15 degrees
-logicaltad1 = ((tad_angles1 > 1)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 195));
+logicaltad1 = ((tad_angles1 >= 0)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 195));
 
 %difference between 2 and 3 frames
 xdiff2 = clippedX(3:length(clippedX),:) - clippedX(2:length(clippedX)-1,:);
@@ -410,10 +399,17 @@ tad_angles2 = atan2d(xdiff2, ydiff2);
 tad_angles2 = abs(tad_angles2);
 
 
-logicaltad2 = ((tad_angles2 > 1) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 195));
+logicaltad2 = ((tad_angles2 >= 0) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 195));
 
 %pads bottom of logical with ones to make it the same size as logical_tad
 %assumes that if tad was within angle in 2 frames it is in 3
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Issues with below section, padding direction for 2??
+% angles are "negative" due to flip of Yaxis direction
+% WHAT IS TOO MUCH?? I think 2 checks is too much 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 logicaltad2 = [ones(1,tads); logicaltad2];
 
 %within 1 and 2 frames is angle correct?
@@ -430,8 +426,10 @@ Vy = ydiff1./t_disp;
 %velocity [=] pixels/second
 Vtot = sqrt(Vx.^2 + Vy.^2);
 
-%logic check for velocity less than 10000 and greater than 10 pix/sec
-velLogic = (Vtot > 10) & (Vtot < 10000);
+%logic check for velocity less than 10000 and greater than 50 pix/sec
+%50 pix/s seems like the threshold for real movment
+
+velLogic = (Vtot > 50) & (Vtot < 10000);
 
 %here is if the angle for 3 frames is ok and the velocity is within range
 within2frAndVelocity = velLogic.*within2fr;
@@ -439,26 +437,29 @@ within2frAndVelocity = velLogic.*within2fr;
 %pads bottom with zeros assumes last frame velocity and angles are 0
 within2frAndVelocity = [within2frAndVelocity; zeros(1,tads)];
 
-actualEncounters = frameAndEncounters(:,2:end).*within2frAndVelocity;
+actualEncounters = framesAndEncounters(:,2:end).*within2frAndVelocity;
 
-actualFramesAndEncount = [frameAndEncounters(:,1) actualEncounters];
+actualFramesAndEncount = [framesAndEncounters(:,1) actualEncounters];
 
 %really just need to know if tadpole is moving within specified angles
 %for at least 3 frames might need to interpolate between to get more
 %accurate picture of if tadpole is moving correct direction
 
 %loop just shows plot of points along with the actual image of 1 tadpole
-whichone = 2;
 
+c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 
-for i = 1:frme-500
-    imshow(tadmov(:,:,i+89))
+for i = 1:frme
+    mov_img = read(mov,i+89);
+    mov_img = rgb2gray(mov_img);
+    imshow(mov_img)
     hold on
         for k = 1:tads
-            plot(clippedY(i,k),clippedX(i,k),'or')
-            plot(clippedY(i+1,k),clippedX(i+1,k),'og')
-            plot(clippedY(i+2,k),clippedX(i+2,k),'oc')
-            %title(['frame: ' num2str(i+103) ' encounter?: ' num2str(actualEncounters(i,whichone)) ' angle?: ' num2str(within2frAndVelocity(i,whichone))])
+            cz = mod(k,6)+1;
+            plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
+            title(['frame: ' num2str(i+89)])
         end
     set(gca,'YDir','reverse')
     axis off
