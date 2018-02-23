@@ -373,6 +373,7 @@ end
 clippedX = Q_loc_estimateX(76:end,:);
 clippedY = Q_loc_estimateY(76:end,:);
 
+%%%%%%%%%%%%%%%SIZING%%%%%%%%%%%%%%%%%%
 [frme, tads] = size(clippedX);
 
 %difference between 1 and 2 frames
@@ -468,18 +469,50 @@ for i = 1:frme
     
 end
 
+%find frames where there was encounter for each tadpole
+enc_one = find(actualFramesAndEncount(:,2) == 1) + 89 %blue
+enc_two = find(actualFramesAndEncount(:,3) == 1) + 89 %green
+enc_three = find(actualFramesAndEncount(:,4) == 1) + 89 %cyan
+enc_four = find(actualFramesAndEncount(:,5) == 1) + 89 %magenta
+enc_five = find(actualFramesAndEncount(:,6) == 1) + 89 %yellow
+enc_six = find(actualFramesAndEncount(:,7) == 1) + 89 %red
+
+%% Event Detection 
+
+%need to know if tadpoles angle changed between 90 and 180 degrees of where
+%encounter occured within 8 frames
+% look at frame where encounter happened + 8 frames 
+
+
+encounter = find(actualFramesAndEncount(:,2) == 1);
+
+for i = 1:length(encounter)
+    enc_pointX = clippedX(encounter(i))
+    enc_pointY = clippedY(encounter(i))
+    
+    fut_pointX = clippedX(encounter(i)+(1:8))
+    fut_pointY = clippedY(encounter(i)+(1:8))
+    
+    
+end
+
+
+
+
+
+
 
 
 %% TO DO LIST
-%               MOST IMPORTANT
-% 1)check for angle of tadpole parallel to X (+/- 15 deg)(DONE)
+%                       IMPORTANT CHANGE!
+% 1) project average position for tadpole eyes instead of tracking gut 
+%   1a) dont need this if you know direction tadpole moves in
 
-%               Later Work
-% 2) compute velocity of tadpole over range of video (DONE)
-% 3) way to correlate matrices without re-saving images from figures
-% 4) save image and frame number of encounter for later checking (DONE)
-% 5) project average position for tadpole eyes instead of tracking gut
-%   5a) dont need this if you know direction tadpole moves in
+%                        Later Work
+% 2) way to correlate matrices without re-saving images from figures
+
+
+
 
 
 %% Plot circles instead of drawing
