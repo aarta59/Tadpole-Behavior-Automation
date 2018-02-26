@@ -450,16 +450,22 @@ actualFramesAndEncount = [framesAndEncounters(:,1) actualEncounters];
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 
-for i = 1:frme
+for i = 500:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-        for k = 1:tads
+        for k = 1;:tads
             cz = mod(k,6)+1;
             plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
             plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
             plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
+            plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
             title(['frame: ' num2str(i+89)])
         end
     set(gca,'YDir','reverse')
@@ -469,7 +475,7 @@ for i = 1:frme
     
 end
 
-%find frames where there was encounter for each tadpole
+%find frames where there was encounter registered for each tadpole
 enc_one = find(actualFramesAndEncount(:,2) == 1) + 89 %blue
 enc_two = find(actualFramesAndEncount(:,3) == 1) + 89 %green
 enc_three = find(actualFramesAndEncount(:,4) == 1) + 89 %cyan
@@ -486,22 +492,40 @@ enc_six = find(actualFramesAndEncount(:,7) == 1) + 89 %red
 
 encounter = find(actualFramesAndEncount(:,2) == 1);
 
-for i = 1:length(encounter)
-    enc_pointX = clippedX(encounter(i))
-    enc_pointY = clippedY(encounter(i))
-    
-    fut_pointX = clippedX(encounter(i)+(1:8))
-    fut_pointY = clippedY(encounter(i)+(1:8))
-    
-    
+%point where encounter occurs
+enc_pointX = clippedX(encounter);
+enc_pointY = clippedY(encounter);
+
+%points from encounter frame (n) to 8 frames in future
+fut_pointX = clippedX(encounter+(1:8));
+fut_pointY = clippedY(encounter+(1:8));
+
+%both encounter point and future points
+a = [enc_pointX fut_pointX]';
+b = [enc_pointY fut_pointY]';
+
+%difference between encounter point (n) and future point (n+1)
+event_diffX = diff(a);
+event_diffY = diff(b);
+
+%angle between encounter frame (n) and future frame (n+(1:8))
+event_angle = atan2d(event_diffX,event_diffY);
+
+[nrow, ncol] = size(event_angle);
+
+for c = 1:ncol
+    for r = 1:nrow
+        
+        if event_angle(r,c) < 0 && event_angle(r,c) < -90
+            event_angle(r,c) = event_angle(r,c) + 180;
+        elseif event_angle(r,c) < 0
+            event_angle(r,c) = event_angle(r,c) * -1;
+        elseif event_angle(r,c) > 90 
+            event_angle(r,c) = 180 - event_angle(r,c);
+        end
+    end
 end
-
-
-
-
-
-
-
+            
 
 %% TO DO LIST
 %                       IMPORTANT CHANGE!
