@@ -353,19 +353,6 @@ save('frame_number_and_encounter.mat','framesAndEncounters')
 % clear frame encount                                         %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Visual Check if encounter occured
-
-% Below is just a simple check to see if the encounter actually did occur
-for i = 90:length(Q_loc_estimateX)
-    mov_img = read(mov,i);
-    mov_img = rgb2gray(mov_img);
-    imshow(mov_img)
-    hold on
-    plot(Q_loc_estimateY(i-14,1),Q_loc_estimateX(i-14,1),'og')
-    title(['frame' num2str(i)])
-    pause
-    
-end
 
 %% Logic for angle checking and velocity checking
 
@@ -446,28 +433,31 @@ actualFramesAndEncount = [framesAndEncounters(:,1) actualEncounters];
 %for at least 3 frames might need to interpolate between to get more
 %accurate picture of if tadpole is moving correct direction
 
+%% Visualization of future frame data 
+
 %loop just shows plot of points along with the actual image of 1 tadpole
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 
-for i = 500:frme
+for i = 800:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-        for k = 1;:tads
-            cz = mod(k,6)+1;
-            plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
-            plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
-            title(['frame: ' num2str(i+89)])
-        end
+    k = 5;
+    cz = mod(k,6)+1;
+    plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
+    plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
+
+    title(['frame: ' num2str(i+89)])
+    
     set(gca,'YDir','reverse')
     axis off
    % axis([1 1344 1 1024])
@@ -475,57 +465,71 @@ for i = 500:frme
     
 end
 
-%find frames where there was encounter registered for each tadpole
-enc_one = find(actualFramesAndEncount(:,2) == 1) + 89 %blue
-enc_two = find(actualFramesAndEncount(:,3) == 1) + 89 %green
-enc_three = find(actualFramesAndEncount(:,4) == 1) + 89 %cyan
-enc_four = find(actualFramesAndEncount(:,5) == 1) + 89 %magenta
-enc_five = find(actualFramesAndEncount(:,6) == 1) + 89 %yellow
-enc_six = find(actualFramesAndEncount(:,7) == 1) + 89 %red
-
 %% Event Detection 
 
 %need to know if tadpoles angle changed between 90 and 180 degrees of where
 %encounter occured within 8 frames
 % look at frame where encounter happened + 8 frames 
 
+for i = 2:length(actualFramesAndEncount(1,:))
+    
+    encounter = find(actualFramesAndEncount(:,i) == 1);
+    
+    %point where encounter occurs
+    enc_pointX = clippedX(encounter,i-1);
+    enc_pointY = clippedY(encounter,i-1);
 
-encounter = find(actualFramesAndEncount(:,2) == 1);
+    %points from encounter frame (n) to 8 frames in future
+    future_points = encounter+(1:8);
+    [r,c] = size(future_points);
+    
+    fut_pointX = zeros(r,c);
+    fut_pointY = zeros(r,c);
+    
+    for k = 1:c
+        fut_pointX(:,k) = clippedX(future_points(:,k),i-1);
+        fut_pointY(:,k) = clippedY(future_points(:,k),i-1);
+    end
 
-%point where encounter occurs
-enc_pointX = clippedX(encounter);
-enc_pointY = clippedY(encounter);
+    %both encounter point and future points
+    a = [enc_pointX fut_pointX]';
+    b = [enc_pointY fut_pointY]';
 
-%points from encounter frame (n) to 8 frames in future
-fut_pointX = clippedX(encounter+(1:8));
-fut_pointY = clippedY(encounter+(1:8));
+    %difference between encounter point (n) and future point (n+1)
+    event_diffX = diff(a);
+    event_diffY = diff(b);
 
-%both encounter point and future points
-a = [enc_pointX fut_pointX]';
-b = [enc_pointY fut_pointY]';
+    %angle between encounter frame (n) and future frame (n+(1:8))
+    event_angle = atan2d(event_diffX,event_diffY);
+    event_angle = abs(event_angle);
 
-%difference between encounter point (n) and future point (n+1)
-event_diffX = diff(a);
-event_diffY = diff(b);
-
-%angle between encounter frame (n) and future frame (n+(1:8))
-event_angle = atan2d(event_diffX,event_diffY);
-
-[nrow, ncol] = size(event_angle);
-
-for c = 1:ncol
-    for r = 1:nrow
+    [nrow, ncol] = size(event_angle);
+    event_count = zeros(nrow,ncol);
+    
+    for c = 1:ncol
+        for r = 1:nrow
         
-        if event_angle(r,c) < 0 && event_angle(r,c) < -90
-            event_angle(r,c) = event_angle(r,c) + 180;
-        elseif event_angle(r,c) < 0
-            event_angle(r,c) = event_angle(r,c) * -1;
-        elseif event_angle(r,c) > 90 
-            event_angle(r,c) = 180 - event_angle(r,c);
+            if event_angle(1,c) < 90 && event_angle(r,c) > 85
+                event = true;
+            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= 95 && event_angle(r,c) >= 0)
+                event = true;
+            else
+                event = false;
+            end
+            event_count(r,c) = event;
         end
     end
+    
+    event = any(event_count)';
+    encounterFrameandEvent = [(encounter+89) event];
+    
+    dataStore{i-1} = encounterFrameandEvent;
 end
-            
+
+%END OF PROGRAM
+
+%VALUE of 'dataStore' contains frame at which encounter occurred and if that
+%encounter triggered an event 
 
 %% TO DO LIST
 %                       IMPORTANT CHANGE!
