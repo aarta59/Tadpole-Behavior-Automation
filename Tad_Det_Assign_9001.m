@@ -61,22 +61,19 @@ s_frame = 15;
 X = cell(1,numFrames-(s_frame-1)); %detection X coordinate 
 Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
-for i = 1:numFrames-(s_frame-1)-500
+for i = 1:numFrames-(s_frame-1)
     %img_real = (read(mov,i));
     bck_img = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
     sub_img = (img - bck_img);
 
-   
-    
     %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
-    %Thresholding level for blob
-    idx = find(blob_img < 0.032); 
+    %Thresholding level for blob (0.032 ex video 95)
+    idx = find(blob_img < 0.04); 
     blob_img(idx) = nan;
     
-   
     %Finds peak indices for blobs
     %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
     [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
@@ -92,7 +89,7 @@ for i = 1:numFrames-(s_frame-1)-500
 %     axis off
 %     
 %     pause
-     
+%      
 end
 
 save('raw_tad_detections.mat','X','Y')
@@ -118,7 +115,6 @@ P = Ex;
 A = [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1]; %state update matrice
 B = [(dt^2/2); (dt^2/2); dt; dt];
 C = [1 0 0 0; 0 1 0 0];
-
 
 %Initializing results
 Q_loc_measure = [];
@@ -162,7 +158,7 @@ for t = 1:length(X)
     
     for F = 1:numF
         if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 100;
+            reject(F) = est_dist(F,asign(F)) < 80;
         else
             reject(F) = 0;
         end
@@ -190,7 +186,6 @@ for t = 1:length(X)
     Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
      
-
 %     imagesc(noDot_img(:,:,t));
 %     hold on;
 %     
@@ -227,7 +222,6 @@ for j = 77:numPositions-500
     pause
 end
     
-
 %% Tracking of Dots Returning Radii/Centers 
 
 %Cropping movie to remove false dot recognition
@@ -240,13 +234,6 @@ xright = 1250;
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
 allradius = cell(1,numFrames); %radius of each detected dot 
 dotzeros = uint8(zeros(vidH,vidW));
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% only reason to reoverlay image on zeros is to show %
-% the dots on the original image. In final revision  %
-% remove the dotzeros part and move straight to next %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 for i = 90:numFrames
     orig_img = read(mov,i);
@@ -266,106 +253,83 @@ end
 %Save radii and centers of dots
 save('dot_centers_radii.mat','allcenter','allradius')
 
+%% Check for position of dots
 
-%% Drawing dots and tadpoles then computing correlation 
+theta = 0:0.5:(2*pi);
 
-%sizing location matrix (index starts at frame 15)
-[fnumber, tadnumber] = size(Q_loc_estimateX);
-
-%plots not visible
-set(gcf,'Visible','off')
-
-%Drawing dots from center and radii data
-% frame = zeros(numFrames-89,1);
-% encount = false(numFrames-89,tadnumber);
-
-for i = 90:numFrames
-%     mov_img = read(mov,i);
-%     mov_img = rgb2gray(mov_img);
-%     imshow(mov_img)
-%     hold on
-%     plot(Q_loc_estimateY(i-14,2),Q_loc_estimateX(i-14,2),'og')
-
-    d = allradius{i}*2;
-    px = allcenter{i}(:,1) - allradius{i};
-    py = allcenter{i}(:,2) - allradius{i};
-    for j = 1:length(d)
-        h = rectangle('Position',[px(j) py(j) d(j) d(j)],...
-            'Curvature',[1,1],'FaceColor',[0,0,0]);  
-    end
-    set(gca,'Ydir','reverse')
-    axis([1 1344 1 1024])
+for i = 90:length(allcenter)
+    
+    hold on
+    pline_x = allradius{i}*cos(theta) + allcenter{i}(:,1);
+    pline_y = allradius{i}*sin(theta) + allcenter{i}(:,2);
+    plot(pline_x,pline_y,'.r');
+    set(gca,'Ydir','reverse');
     axis off
-    imgdot = getframe(gcf);
-    imgdot = frame2im(imgdot);
-    imgdot = rgb2gray(imgdot);
+    pause
     clf
     
-    for k = 1:tadnumber
-        dz = 4*2;
-        zx = Q_loc_estimateY(i-14,k) - 4;
-        zy = Q_loc_estimateX(i-14,k) - 4;
-
-        mn = rectangle('Position',[zx zy dz dz],...
-            'Curvature',[1,1],'FaceColor',[0,0,0]);
-        set(gca,'Ydir','reverse')
-        axis([1 1344 1 1024])
-        axis off
-        imgtad = getframe(gcf);
-        imgtad = frame2im(imgtad);
-        imgtad = rgb2gray(imgtad);
-        clf
-        
-        %corr2 shows when tadpole crosses dot
-        co_relate = corr2(imgdot,imgtad);
-        
-        % negative correlation means dot and tadpole are far
-        % positive correlation means dot and tadpole intersect
-        if co_relate > 0
-            encounter = true;
-        else
-            encounter = false;
-        end
-
-            frame(i-89,1) = i;
-            encount(i-89,k) = encounter;
-
-    end
-
 end
 
-%index for frames and encounters starts at frame 90 (where dots begin)
-
-framesAndEncounters = [frame encount];
-save('frame_number_and_encounter.mat','framesAndEncounters')
-
-%%%%%%%%%%%%%%%%%-NOTES-%%%%%%%%%%%%%%%%%
-% location estimates are frame-14 off   %
-% of dot drawing due to re-indexing of  %
-% locations starting at 1 (prev at 15)  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% This section could be used to find location of intersection %
-%                                                             %
-% mtchpix = (double(imgdot) - double(imgtad)) == 0;           % 
-% imshow(mtchpix)                                             %
-% clear frame encount                                         %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-%% Logic for angle checking and velocity checking
+%% Drawing dots and tadpoles then computing correlation 
 
 %Clipping X and Y positions so at index 1, frame is 90
 clippedX = Q_loc_estimateX(76:end,:);
 clippedY = Q_loc_estimateY(76:end,:);
 
-%%%%%%%%%%%%%%%SIZING%%%%%%%%%%%%%%%%%%
+%Clipping dot centers and radius so index 1, frame is 90
+clipCenters = allcenter(90:end);
+clipRadius = allradius(90:end);
+
+%points around tadpole to plot
+theta = (0:180)';
+
 [frme, tads] = size(clippedX);
 
+%preallocate encounter matrix
+encounterMatrix = zeros(frme,tads);
+
+for i = 1:frme
+    
+    cenXYRad = [clipCenters{i} clipRadius{i}];
+    
+    %loop starts with column 1 == tadpole 1
+    for j = 1:tads
+        pline_x = 15*cos(theta) + clippedX(i,j);
+        pline_y = 15*sin(theta) + clippedY(i,j);
+        
+        %looks at every dot center point and finds distance from dot center
+        %to all points around tadpole
+        dotEncount = 0;
+        for k = 1:length(cenXYRad)
+
+            dist_Circ = sqrt((pline_x - cenXYRad(k,2)).^2 + (pline_y - cenXYRad(k,1)).^2);
+            
+            if any(dist_Circ <= cenXYRad(k,3))
+                dotEncount = dotEncount + 1;
+            end
+        end
+        
+        if dotEncount > 0
+            encounterMatrix(i,j) = 1;
+        else
+            encounterMatrix(i,j) = 0;
+        end
+        
+    end
+end
+
+save('encounter_matrix.mat','encounterMatrix')
+
+
+%% Logic for angle checking and velocity checking
+
 %difference between 1 and 2 frames
-xdiff1 = diff(clippedX);
-ydiff1 = diff(clippedY);
+%xdiff1 = diff(clippedX);
+%ydiff1 = diff(clippedY);
+
+%difference tadpole is currently at vs previous
+xdiff1 = clippedX(1:length(clippedX)-1,:) - clippedX(2:length(clippedX),:);
+ydiff1 = clippedY(1:length(clippedY)-1,:) - clippedY(2:length(clippedY),:);
 
 %gets angles between X(2:n,:) - X(1:n-1,:) and Y_diff
 tad_angles1 = atan2d(xdiff1, ydiff1);
@@ -374,31 +338,26 @@ tad_angles1 = atan2d(xdiff1, ydiff1);
 %only looking for tadpole 180+/-15 and 0+/-15 (0+/-15 same as abs(15))
 tad_angles1 = abs(tad_angles1);
 
-
 %logical array of angles betweent 180+/-15 and 0+/-15 degrees
-logicaltad1 = ((tad_angles1 >= 0)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 195));
+logicaltad1 = ((tad_angles1 >= 0)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 180));
 
 %difference between 2 and 3 frames
-xdiff2 = clippedX(3:length(clippedX),:) - clippedX(2:length(clippedX)-1,:);
-ydiff2 = clippedY(3:length(clippedY),:) - clippedY(2:length(clippedY)-1,:);
+%xdiff2 = clippedX(3:length(clippedX),:) - clippedX(2:length(clippedX)-1,:);
+%ydiff2 = clippedY(3:length(clippedY),:) - clippedY(2:length(clippedY)-1,:);
+
+xdiff2 = diff(clippedX);
+ydiff2 = diff(clippedY);
 
 %angles between second and third frames
 tad_angles2 = atan2d(xdiff2, ydiff2);
 tad_angles2 = abs(tad_angles2);
 
-
-logicaltad2 = ((tad_angles2 >= 0) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 195));
+logicaltad2 = ((tad_angles2 >= 0) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 180));
 
 %pads bottom of logical with ones to make it the same size as logical_tad
 %assumes that if tad was within angle in 2 frames it is in 3
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Issues with below section, padding direction for 2??
-% angles are "negative" due to flip of Yaxis direction
-% WHAT IS TOO MUCH?? I think 2 checks is too much 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-logicaltad2 = [ones(1,tads); logicaltad2];
+%logicaltad2 = [ones(1,tads); logicaltad2];
 
 %within 1 and 2 frames is angle correct?
 within2fr = logicaltad2.*logicaltad1;
@@ -406,7 +365,6 @@ within2fr = logicaltad2.*logicaltad1;
 %checks velocity of tadpole
 f_rate = 15; %f/s
 t_disp = 1/f_rate; %sec (time between frames)
-
 
 Vx = xdiff1./t_disp;
 Vy = ydiff1./t_disp;
@@ -425,9 +383,9 @@ within2frAndVelocity = velLogic.*within2fr;
 %pads bottom with zeros assumes last frame velocity and angles are 0
 within2frAndVelocity = [within2frAndVelocity; zeros(1,tads)];
 
-actualEncounters = framesAndEncounters(:,2:end).*within2frAndVelocity;
+actualEncounters = encounterMatrix.*within2frAndVelocity;
 
-actualFramesAndEncount = [framesAndEncounters(:,1) actualEncounters];
+actualFramesAndEncount = [((1:frme)+89)' actualEncounters];
 
 %really just need to know if tadpole is moving within specified angles
 %for at least 3 frames might need to interpolate between to get more
@@ -439,12 +397,12 @@ actualFramesAndEncount = [framesAndEncounters(:,1) actualEncounters];
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 
-for i = 800:frme
+for i = 350:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    k = 5;
+    k = 1;
     cz = mod(k,6)+1;
     plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
     plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
@@ -535,33 +493,6 @@ end
 %                       IMPORTANT CHANGE!
 % 1) project average position for tadpole eyes instead of tracking gut 
 %   1a) dont need this if you know direction tadpole moves in
-
-%                        Later Work
-% 2) way to correlate matrices without re-saving images from figures
-
-
-
-
-
-%% Plot circles instead of drawing
-
-% [This will most likely be deleted in final revision] 
-
-% functional, could be used instead of correlation method
-% by finding if tadpole comes within certain distance from
-% the computed points below
-% possibly faster method will try to get working after
-
-% theta = 0:0.01:(2*pi);
-% [pline_x] = allradius{i}*cos(theta) + allcenter{i}(:,1);
-% [pline_y] = allradius{i}*sin(theta) + allcenter{i}(:,2);
-% plot(pline_x,pline_y,'.r');
-% set(gca,'Ydir','reverse');
-% axis off
-
-
-
-
 
 
 
