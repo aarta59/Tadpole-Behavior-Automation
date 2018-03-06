@@ -70,13 +70,24 @@ for i = 1:numFrames-(s_frame-1)
     %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
-    %Thresholding level for blob (0.032 ex video 95)
-    idx = find(blob_img < 0.04); 
+    %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
+    idx = find(blob_img < 0.024); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
     %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
     [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
+    
+    thresh = 0.026;
+    while length(imax) > tad_number 
+        idx = find(blob_img < thresh); 
+        blob_img(idx) = nan;
+        [zmax,imax,zmin,imin] = extrema2(blob_img);
+            
+        if length(imax) > tad_number
+            thresh = thresh + 0.002;
+        end
+    end
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
@@ -100,9 +111,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=2,tmnx=0.05,tnmy=0.05)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 2; %variability in tadpole speed 
-tmn_x = 0.05; %noise in horizontal direction, x-axis
-tmn_y = 0.05; %noise in vertical direction, y-axis
+Tad_noise_mag = 1; %variability in tadpole speed 
+tmn_x = 0.5; %noise in horizontal direction, x-axis
+tmn_y = 0.5; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -158,7 +169,7 @@ for t = 1:length(X)
     
     for F = 1:numF
         if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 80;
+            reject(F) = est_dist(F,asign(F)) < 100;
         else
             reject(F) = 0;
         end
@@ -202,7 +213,7 @@ for t = 1:length(X)
 %    
 end
 
-save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
+%save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
 
 %% Plots location estimates
 
@@ -214,7 +225,7 @@ hold on
 axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 77:numPositions-500
+for j = 77:numPositions
     for i = 1:numDetections
         cz = mod(i,6)+1;
         plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
@@ -225,10 +236,16 @@ end
 %% Tracking of Dots Returning Radii/Centers 
 
 %Cropping movie to remove false dot recognition
-ytop = 140;
-ybott = 910;
-xleft = 90;
-xright = 1250;
+% ytop = 140;
+% ybott = 910;
+% xleft = 90;
+% xright = 1250;
+
+%try with these new values
+ytop = 160;
+ybott = 900;
+xleft = 100;
+xright = 1230;
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
@@ -271,6 +288,23 @@ for i = 90:length(allcenter)
 end
 
 %% Drawing dots and tadpoles then computing correlation 
+%difference tadpole is currently at 
+xdiff1 = clippedX(1:length(clippedX)-1,:) - clippedX(2:length(clippedX),:);
+ydiff1 = clippedY(1:length(clippedY)-1,:) - clippedY(2:length(clippedY),:);
+
+%gets angles between X(2:n,:) - X(1:n-1,:) and Y_diff
+tad_angles1 = atan2d(xdiff1, ydiff1);
+
+%take absoulte value of angles because direction of movment doesnt matter
+%only looking for tadpole 180+/-15 and 0+/-15 (0+/-15 same as abs(15))
+tad_angles1 = abs(tad_angles1);
+
+xdiff2 = diff(clippedX);
+ydiff2 = diff(clippedY);
+
+%angles between second and third frames
+tad_angles2 = atan2d(xdiff2, ydiff2);
+tad_angles2 = abs(tad_angles2);
 
 %Clipping X and Y positions so at index 1, frame is 90
 clippedX = Q_loc_estimateX(76:end,:);
@@ -280,8 +314,11 @@ clippedY = Q_loc_estimateY(76:end,:);
 clipCenters = allcenter(90:end);
 clipRadius = allradius(90:end);
 
+%padding last value of tadpole angles with 0
+t_pad_angle = [tad_angles2; zeros(1,tads)];
+
 %points around tadpole to plot
-theta = (0:180)';
+theta = (0:360)';
 
 [frme, tads] = size(clippedX);
 
@@ -294,8 +331,21 @@ for i = 1:frme
     
     %loop starts with column 1 == tadpole 1
     for j = 1:tads
+        
+        %guess of r=15 pixels (eyes 13 pixels from gut of tadpole)
         pline_x = 15*cos(theta) + clippedX(i,j);
         pline_y = 15*sin(theta) + clippedY(i,j);
+        
+        %looks only at points in half-circle in direction of movment
+        if t_pad_angle(i,j) < 90
+            tad_visionIdx = find(pline_y > clippedY(i,j));
+            pline_x = pline_x(tad_visionIdx);
+            pline_y = pline_y(tad_visionIdx);
+        else
+            tad_visionIdx = find(pline_y < clippedY(i,j));
+            pline_x = pline_x(tad_visionIdx);
+            pline_y = pline_y(tad_visionIdx);
+        end
         
         %looks at every dot center point and finds distance from dot center
         %to all points around tadpole
@@ -323,41 +373,15 @@ save('encounter_matrix.mat','encounterMatrix')
 
 %% Logic for angle checking and velocity checking
 
-%difference between 1 and 2 frames
-%xdiff1 = diff(clippedX);
-%ydiff1 = diff(clippedY);
+%section does two checks for tadpole movment. first check is for the angle
+%of the tadpole between frame "n" and "n-1" the second check is for the
+%angle between "n" and "n+1" to see if eye is perpendicular to dot
 
-%difference tadpole is currently at vs previous
-xdiff1 = clippedX(1:length(clippedX)-1,:) - clippedX(2:length(clippedX),:);
-ydiff1 = clippedY(1:length(clippedY)-1,:) - clippedY(2:length(clippedY),:);
-
-%gets angles between X(2:n,:) - X(1:n-1,:) and Y_diff
-tad_angles1 = atan2d(xdiff1, ydiff1);
-
-%take absoulte value of angles because direction of movment doesnt matter
-%only looking for tadpole 180+/-15 and 0+/-15 (0+/-15 same as abs(15))
-tad_angles1 = abs(tad_angles1);
-
-%logical array of angles betweent 180+/-15 and 0+/-15 degrees
+%logical array of angles between 180+/-15 & 0+/-15 degrees for frame (1-2)
 logicaltad1 = ((tad_angles1 >= 0)  & (tad_angles1 <= 15)) | ((tad_angles1 >= 165) & (tad_angles1 <= 180));
 
-%difference between 2 and 3 frames
-%xdiff2 = clippedX(3:length(clippedX),:) - clippedX(2:length(clippedX)-1,:);
-%ydiff2 = clippedY(3:length(clippedY),:) - clippedY(2:length(clippedY)-1,:);
-
-xdiff2 = diff(clippedX);
-ydiff2 = diff(clippedY);
-
-%angles between second and third frames
-tad_angles2 = atan2d(xdiff2, ydiff2);
-tad_angles2 = abs(tad_angles2);
-
+%logical array of angles between 180+/-15 & 0+/-15 degrees for frame (2-3)
 logicaltad2 = ((tad_angles2 >= 0) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165) & (tad_angles2 <= 180));
-
-%pads bottom of logical with ones to make it the same size as logical_tad
-%assumes that if tad was within angle in 2 frames it is in 3
-
-%logicaltad2 = [ones(1,tads); logicaltad2];
 
 %within 1 and 2 frames is angle correct?
 within2fr = logicaltad2.*logicaltad1;
@@ -387,17 +411,13 @@ actualEncounters = encounterMatrix.*within2frAndVelocity;
 
 actualFramesAndEncount = [((1:frme)+89)' actualEncounters];
 
-%really just need to know if tadpole is moving within specified angles
-%for at least 3 frames might need to interpolate between to get more
-%accurate picture of if tadpole is moving correct direction
-
 %% Visualization of future frame data 
 
 %loop just shows plot of points along with the actual image of 1 tadpole
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-
-for i = 350:frme
+figure
+for i = 1:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
@@ -466,10 +486,13 @@ for i = 2:length(actualFramesAndEncount(1,:))
     
     for c = 1:ncol
         for r = 1:nrow
-        
-            if event_angle(1,c) < 90 && event_angle(r,c) > 85
+            
+            %increase tolerance for event here to do this
+            %lower first if statment event_angle(r,c) > 85-tolerance
+            %increase elseif statment event_angle(r,c) <= 95+tolerance
+            if event_angle(1,c) < 90 && event_angle(r,c) >= 70
                 event = true;
-            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= 95 && event_angle(r,c) >= 0)
+            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= 110 && event_angle(r,c) >= 0)
                 event = true;
             else
                 event = false;
@@ -490,9 +513,6 @@ end
 %encounter triggered an event 
 
 %% TO DO LIST
-%                       IMPORTANT CHANGE!
-% 1) project average position for tadpole eyes instead of tracking gut 
-%   1a) dont need this if you know direction tadpole moves in
 
 
 
