@@ -11,7 +11,7 @@ close all
 %Choose location of video and file to be run
 directory = uigetdir;
 cd(directory);
-moviename = uigetfile('*.mov');
+moviename = uigetfile({'*.mov';'*.avi'});
 folder = fullfile(directory);
 movFullFile = fullfile(folder, moviename);
 mov = VideoReader(movFullFile);
@@ -54,6 +54,9 @@ h = fspecial('log', hsizeh, sigmah);
 
 %% Iteratively finding tadpoles from blobs
 
+%enter number of tadpoles in video for auto threshold
+tad_number = 6;
+
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
 
@@ -71,35 +74,42 @@ for i = 1:numFrames-(s_frame-1)
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
-    idx = find(blob_img < 0.024); 
+    idx = find(blob_img < 0.030); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
-    %[zmax,imax] = max(blob_img(:)); %ONLY WORKS FOR 1 TADPOLE CURRENTLY
-    [zmax,imax,zmin,imin] = extrema2(blob_img); %WORKS FOR MULTIPLE TADS
+    [zmax,imax,zmin,imin] = extrema2(blob_img); 
     
-    thresh = 0.026;
-    while length(imax) > tad_number 
-        idx = find(blob_img < thresh); 
-        blob_img(idx) = nan;
-        [zmax,imax,zmin,imin] = extrema2(blob_img);
-            
-        if length(imax) > tad_number
-            thresh = thresh + 0.002;
-        end
-    end
+
+    %Section for auto threshold based on number of expected detections
+%     thresh = 0.040;
+%     while length(imax) > tad_number 
+%         idx = find(blob_img < thresh); 
+%         blob_img(idx) = nan;
+%         [zmax,imax,zmin,imin] = extrema2(blob_img);
+%             
+%         if length(imax) > tad_number
+%             thresh = thresh + 0.002;
+%         end
+%     end
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
+    if i == (round((numFrames-(s_frame-1))/2))
+        disp('Tadpole detection is 50% complete')
+    elseif i == (numFrames-(s_frame-1))
+        disp('Tadpole detection is 100% complete')  
+    end
+    
     %Plot of raw detections with threshold overlay
-%     imagesc(blob_img)
+%      imagesc(blob_img)
 %     hold on
 %     for j = 1:length(X{i})
 %        plot(Y{i}(j),X{i}(j),'or')
 %     end
 %     axis off
 %     
-%     pause
+%      pause
 %      
 end
 
@@ -108,12 +118,12 @@ save('raw_tad_detections.mat','X','Y')
 %% Kalman Filter Variable Definitions 
 
 %These values should be changed to allow for more accurate assignment
-%Current values are working: (dt=1,u=0,tnm=2,tmnx=0.05,tnmy=0.05)
+%Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
 Tad_noise_mag = 1; %variability in tadpole speed 
-tmn_x = 0.5; %noise in horizontal direction, x-axis
-tmn_y = 0.5; %noise in vertical direction, y-axis
+tmn_x = 0.1; %noise in horizontal direction, x-axis
+tmn_y = 0.1; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -123,7 +133,7 @@ Ex = [dt^4/4 0 dt^3/2 0; 0 dt^4/4 0 dt^3/2; dt^3/2 0 dt^2 0; 0 dt^3/2 0 dt^2].*T
 P = Ex;
 
 %2-D updates for coefficent matrix
-A = [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1]; %state update matrice
+A = [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1];
 B = [(dt^2/2); (dt^2/2); dt; dt];
 C = [1 0 0 0; 0 1 0 0];
 
@@ -196,7 +206,7 @@ for t = 1:length(X)
     %Remove nan values and store 
     Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
-     
+    
 %     imagesc(noDot_img(:,:,t));
 %     hold on;
 %     
@@ -213,7 +223,18 @@ for t = 1:length(X)
 %    
 end
 
-%save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
+save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
+
+%% Removing Bad Detections
+
+%removes columns where detection is not in frame
+removeX = any(Q_loc_estimateX<0 | Q_loc_estimateX>vidH);
+removeY = any(Q_loc_estimateY<0 | Q_loc_estimateY>vidW);
+removePoints = [removeX; removeY];
+removePoints = any(removePoints == 1);
+
+Q_loc_estimateX(:,removePoints) = [];
+Q_loc_estimateY(:,removePoints) = [];
 
 %% Plots location estimates
 
@@ -242,29 +263,48 @@ end
 % xright = 1250;
 
 %try with these new values
-ytop = 160;
+% ytop = 160;
+% ybott = 900;
+% xleft = 100;
+% xright = 1230;
+
+%values for channel system (xright = 1280)
+ytop = 130;
 ybott = 900;
-xleft = 100;
-xright = 1230;
+xleft = 80;
+xright = 1125;
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
 allradius = cell(1,numFrames); %radius of each detected dot 
 dotzeros = uint8(zeros(vidH,vidW));
+dotLoopLength = length(90:numFrames);
 
 for i = 90:numFrames
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
     croped_orig = orig_img(ytop:ybott,xleft:xright,:);
-    backg = imopen(croped_orig, strel('disk',23));
+    %backg = imopen(croped_orig, strel('disk',23));
+    backg = uint8(bck_img(ytop:ybott,xleft:xright,:));
     minus_bck = croped_orig - backg;
     adj_mius = imadjust(minus_bck);
     str_mius = imopen(adj_mius, strel('disk',4));
-    str_mius = str_mius*2;
+    %str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
-        'ObjectPolarity','bright', 'Sensitivity',0.90);    
+        'ObjectPolarity','bright', 'Sensitivity',0.90);
+    
+    if i == (round(dotLoopLength*0.25))
+        disp('Dot detection is 25% complete')
+    elseif i == (round(dotLoopLength*0.50))
+        disp('Dot detection is 50% complete')
+    elseif i == (round(dotLoopLength*0.75))
+        disp('Dot detection is 75% complete')
+    elseif i == numFrames
+        disp('Dot detection is 100% complete')
+    end
+    
 end
 
 %Save radii and centers of dots
@@ -273,6 +313,7 @@ save('dot_centers_radii.mat','allcenter','allradius')
 %% Check for position of dots
 
 theta = 0:0.5:(2*pi);
+%imagesc(dotzeros)
 
 for i = 90:length(allcenter)
     
@@ -288,6 +329,16 @@ for i = 90:length(allcenter)
 end
 
 %% Drawing dots and tadpoles then computing correlation 
+%Clipping X and Y positions so at index 1, frame is 90
+clippedX = Q_loc_estimateX(76:end,:);
+clippedY = Q_loc_estimateY(76:end,:);
+
+%Clipping dot centers and radius so index 1, frame is 90
+clipCenters = allcenter(90:end);
+clipRadius = allradius(90:end);
+
+[frme, tads] = size(clippedX);
+
 %difference tadpole is currently at 
 xdiff1 = clippedX(1:length(clippedX)-1,:) - clippedX(2:length(clippedX),:);
 ydiff1 = clippedY(1:length(clippedY)-1,:) - clippedY(2:length(clippedY),:);
@@ -306,21 +357,11 @@ ydiff2 = diff(clippedY);
 tad_angles2 = atan2d(xdiff2, ydiff2);
 tad_angles2 = abs(tad_angles2);
 
-%Clipping X and Y positions so at index 1, frame is 90
-clippedX = Q_loc_estimateX(76:end,:);
-clippedY = Q_loc_estimateY(76:end,:);
-
-%Clipping dot centers and radius so index 1, frame is 90
-clipCenters = allcenter(90:end);
-clipRadius = allradius(90:end);
-
 %padding last value of tadpole angles with 0
 t_pad_angle = [tad_angles2; zeros(1,tads)];
 
 %points around tadpole to plot
 theta = (0:360)';
-
-[frme, tads] = size(clippedX);
 
 %preallocate encounter matrix
 encounterMatrix = zeros(frme,tads);
@@ -512,13 +553,14 @@ end
 %VALUE of 'dataStore' contains frame at which encounter occurred and if that
 %encounter triggered an event 
 
-%% TO DO LIST
-
-
+%% References and Dependencies 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% References:                                                                        %
+% Code References:                                                                   %
 % Student Dave: http://studentdavestutorials.weebly.com/                             % 
+%                                                                                    %        
 %                                                                                    %
-%                                                                                    %
+% Runtime Dependencies:                                                              %
+% https://www.mathworks.com/matlabcentral/fileexchange/12275-extrema-m--extrema2-m   %                                                                                %
+% https://www.mathworks.com/matlabcentral/fileexchange/34040-simple-tracker          %                                                                         %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
