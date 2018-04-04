@@ -446,11 +446,17 @@ velLogic = (Vtot > 50) & (Vtot < 10000);
 within2frAndVelocity = velLogic.*within2fr;
 
 %pads bottom with zeros assumes last frame velocity and angles are 0
-within2frAndVelocity = [within2frAndVelocity; zeros(1,tads)];
+%within2frAndVelocity = [within2frAndVelocity; zeros(1,tads)];
+within2frAndVelocity = [zeros(1,tads); within2frAndVelocity];
 
 actualEncounters = encounterMatrix.*within2frAndVelocity;
 
 actualFramesAndEncount = [((1:frme)+89)' actualEncounters];
+
+%removes last 8 encounters
+remFrames = any(actualFramesAndEncount((frme-8):frme(end),2:end) == 1);
+remIdx = find(remFrames == 1);
+actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
 %% Visualization of future frame data 
 
@@ -463,17 +469,17 @@ for i = 1:frme
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    k = 1;
+    k = 5;
     cz = mod(k,6)+1;
     plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
     plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
+%     plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
 
     title(['frame: ' num2str(i+89)])
     
@@ -552,6 +558,19 @@ end
 
 %VALUE of 'dataStore' contains frame at which encounter occurred and if that
 %encounter triggered an event 
+
+%% Provide Average 
+
+for i = 1:length(dataStore)
+    sumOnes = sum(dataStore{i}(:,2) == 1);
+    avg = sumOnes/length(dataStore{i});
+    encAvg(i) = avg;
+    numEncount(i) = length(dataStore{i});
+    numAvoid(i) = sumOnes;
+end
+
+tab = table(encAvg', numAvoid', numEncount', 'VariableNames', {'AvoidanceIndex',...
+    'NumberAvoidances', 'NumberEncounters'});
 
 %% References and Dependencies 
 
