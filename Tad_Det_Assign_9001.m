@@ -49,7 +49,7 @@ end
 %for example video 95 hsizeh=60 and sigmah=8
 
 hsizeh = 60;  
-sigmah = 8;   
+sigmah = 6;   
 h = fspecial('log', hsizeh, sigmah);
 
 %% Iteratively finding tadpoles from blobs
@@ -74,11 +74,11 @@ for i = 1:numFrames-(s_frame-1)
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
-    idx = find(blob_img < 0.030); 
+    idx = find(blob_img < 0.1); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
-    [zmax,imax,zmin,imin] = extrema2(blob_img); 
+    [~,imax,~,~] = extrema2(blob_img); 
     
 
     %Section for auto threshold based on number of expected detections
@@ -102,15 +102,15 @@ for i = 1:numFrames-(s_frame-1)
     end
     
     %Plot of raw detections with threshold overlay
-%      imagesc(blob_img)
+%     imagesc(blob_img)
 %     hold on
 %     for j = 1:length(X{i})
 %        plot(Y{i}(j),X{i}(j),'or')
 %     end
 %     axis off
 %     
-%      pause
-%      
+%     pause
+%       
 end
 
 save('raw_tad_detections.mat','X','Y')
@@ -121,9 +121,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 1; %variability in tadpole speed 
-tmn_x = 0.1; %noise in horizontal direction, x-axis
-tmn_y = 0.1; %noise in vertical direction, y-axis
+Tad_noise_mag = 3; %variability in tadpole speed 
+tmn_x = 2; %noise in horizontal direction, x-axis
+tmn_y = 2; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -221,6 +221,7 @@ for t = 1:length(X)
 %         end
 %     end
 %    
+%     pause
 end
 
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
@@ -246,7 +247,8 @@ hold on
 axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 77:numPositions
+for j = 1:numPositions
+    %imagesc(noDot_img(:,:,j+14))
     for i = 1:numDetections
         cz = mod(i,6)+1;
         plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
@@ -269,10 +271,10 @@ end
 % xright = 1230;
 
 %values for channel system (xright = 1280)
-ytop = 130;
-ybott = 900;
-xleft = 80;
-xright = 1125;
+ytop = 200;
+ybott = 850;
+xleft = 170;
+xright = 1200;
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
@@ -293,7 +295,7 @@ for i = 90:numFrames
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
-        'ObjectPolarity','bright', 'Sensitivity',0.90);
+        'ObjectPolarity','bright', 'Sensitivity',0.91);
     
     if i == (round(dotLoopLength*0.25))
         disp('Dot detection is 25% complete')
@@ -315,13 +317,14 @@ save('dot_centers_radii.mat','allcenter','allradius')
 theta = 0:0.5:(2*pi);
 %imagesc(dotzeros)
 
-for i = 90:length(allcenter)
+for i = 91:length(allcenter)
     
     hold on
     pline_x = allradius{i}*cos(theta) + allcenter{i}(:,1);
     pline_y = allradius{i}*sin(theta) + allcenter{i}(:,2);
     plot(pline_x,pline_y,'.r');
     set(gca,'Ydir','reverse');
+    axis([0 1344 0 1024])
     axis off
     pause
     clf
@@ -464,12 +467,12 @@ actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 figure
-for i = 1:frme
+for i = 600:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    k = 5;
+    k = 1;
     cz = mod(k,6)+1;
     plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
     plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
@@ -553,6 +556,8 @@ for i = 2:length(actualFramesAndEncount(1,:))
     
     dataStore{i-1} = encounterFrameandEvent;
 end
+
+save('Final_Avoidance_Data.mat','dataStore')
 
 %END OF PROGRAM
 
