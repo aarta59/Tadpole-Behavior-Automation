@@ -5,35 +5,25 @@
 %           Scripps Research Institute, La Jolla, California            %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-clear
-close all
-
-%Choose location of video and file to be run
-directory = uigetdir;
-cd(directory);
-moviename = uigetfile({'*.mov';'*.avi'});
-folder = fullfile(directory);
-movFullFile = fullfile(folder, moviename);
-mov = VideoReader(movFullFile);
-
+function [encAvg,numEncount,numAvoid] = TadFunctionTest(mov)
 %Video dimentions
 numFrames = mov.NumberOfFrames;
 vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-%img = zeros(vidH,vidW,numFrames);
+img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Taking Median of video frames
 for i = 1:numFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
-    %img_tmp = imopen(img_tmp, strel('disk',25));
-    noDot_img(:,:,i) = img_tmp;
+    img_tmp = imopen(img_tmp, strel('disk',25));
+    img(:,:,i) = img_tmp;
 end
 
-bck_img = (mean(noDot_img,3));
+bck_img = (mean(img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
@@ -45,16 +35,14 @@ for i = 1:numFrames
     noDot_img(:,:,i) = noDot_tmp;
 end
 
-
-
-%% Iteratively finding tadpoles from blobs
-
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
+
 hsizeh = 60;  
-sigmah = 4;   
+sigmah = 6;   
 h = fspecial('log', hsizeh, sigmah);
 
+%% Iteratively finding tadpoles from blobs
 
 %enter number of tadpoles in video for auto threshold
 %tad_number = 6;
@@ -72,11 +60,11 @@ for i = 1:numFrames-(s_frame-1)
     img = noDot_img(:,:,i+(s_frame-1)); 
     sub_img = (img - bck_img);
 
-    %Blob Filtering (orig. 'same', try 'full')
+    %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
-    idx = find(blob_img < 0.7); 
+    idx = find(blob_img < 0.1); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
@@ -88,7 +76,7 @@ for i = 1:numFrames-(s_frame-1)
 %     while length(imax) > tad_number 
 %         idx = find(blob_img < thresh); 
 %         blob_img(idx) = nan;
-%         [~,imax,~,~] = extrema2(blob_img);
+%         [zmax,imax,zmin,imin] = extrema2(blob_img);
 %             
 %         if length(imax) > tad_number
 %             thresh = thresh + 0.002;
@@ -104,15 +92,15 @@ for i = 1:numFrames-(s_frame-1)
     end
     
     %Plot of raw detections with threshold overlay
-%     imagesc(blob_img)
+%      imagesc(blob_img)
 %     hold on
 %     for j = 1:length(X{i})
 %        plot(Y{i}(j),X{i}(j),'or')
 %     end
 %     axis off
 %     
-%     pause
-%       
+%      pause
+%      
 end
 
 save('raw_tad_detections.mat','X','Y')
@@ -123,9 +111,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 1; %variability in tadpole speed 
-tmn_x = 0.5; %noise in horizontal direction, x-axis
-tmn_y = 0.5; %noise in vertical direction, y-axis
+Tad_noise_mag = 3; %variability in tadpole speed 
+tmn_x = 2; %noise in horizontal direction, x-axis
+tmn_y = 2; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -140,7 +128,7 @@ B = [(dt^2/2); (dt^2/2); dt; dt];
 C = [1 0 0 0; 0 1 0 0];
 
 %Initializing results
-Q_loc_measure = [];  % (possibly uneeded intit.)
+Q_loc_measure = [];
 
 %Initialize estimations in 2-D
 Q = [X{1} Y{1} zeros(length(X{1}),1) zeros(length(X{1}),1)]';
@@ -148,7 +136,7 @@ Q_est = nan(4,2000);
 Q_est(:,1:size(Q,2)) = Q; %initial location estimate
 Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
-numDet = size(X{1},1); %number of detections (possibly uneeded intit.)
+numDet = size(X{1},1); %number of detections
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
 
 for t = 1:length(X)
@@ -173,7 +161,7 @@ for t = 1:length(X)
     est_dist = squareform(est_dist);
     est_dist = est_dist(1:numF, numF+1:end);
     
-    [asign, cost] = munkres(est_dist);
+    [asign, ~] = munkres(est_dist);
     asign = asign';
     
     %checking if detection far from observation
@@ -223,7 +211,6 @@ for t = 1:length(X)
 %         end
 %     end
 %    
-%     pause
 end
 
 save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')  
@@ -239,25 +226,6 @@ removePoints = any(removePoints == 1);
 Q_loc_estimateX(:,removePoints) = [];
 Q_loc_estimateY(:,removePoints) = [];
 
-%% Plots location estimates
-
-%get dimentions of location estimates
-[numPositions, numDetections] = size(Q_loc_estimateX);
-
-figure
-hold on
-axis off
-set(gca,'YDir','reverse')
-c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 1:numPositions
-    imagesc(noDot_img(:,:,j+14))
-    for i = 1:numDetections
-        cz = mod(i,6)+1;
-        plot(Q_loc_estimateY(j,i),Q_loc_estimateX(j,i), 'o', 'color', c_list(cz))
-    end
-    pause
-end
-    
 %% Tracking of Dots Returning Radii/Centers 
 
 %Cropping movie to remove false dot recognition
@@ -273,10 +241,10 @@ end
 % xright = 1230;
 
 %values for channel system (xright = 1280)
-ytop = 150;
+ytop = 130;
 ybott = 900;
-xleft = 90;
-xright = 1260;
+xleft = 80;
+xright = 1125;
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
@@ -293,11 +261,11 @@ for i = 90:numFrames
     minus_bck = croped_orig - backg;
     adj_mius = imadjust(minus_bck);
     str_mius = imopen(adj_mius, strel('disk',4));
-    str_mius = str_mius*2;
+    %str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
-        'ObjectPolarity','bright', 'Sensitivity',0.91);
+        'ObjectPolarity','bright', 'Sensitivity',0.90);
     
     if i == (round(dotLoopLength*0.25))
         disp('Dot detection is 25% complete')
@@ -313,28 +281,6 @@ end
 
 %Save radii and centers of dots
 save('dot_centers_radii.mat','allcenter','allradius')
-
-%% Check for position of dots
-
-theta = 0:0.5:(2*pi);
-%imagesc(dotzeros)
-
-for i = 91:length(allcenter)
-    orig_img = read(mov,i);
-    orig_img = rgb2gray(orig_img);
-    imshow(orig_img)
-    
-    hold on
-    pline_x = allradius{i}*cos(theta) + allcenter{i}(:,1);
-    pline_y = allradius{i}*sin(theta) + allcenter{i}(:,2);
-    plot(pline_x,pline_y,'.r');
-    set(gca,'Ydir','reverse');
-%     axis([0 1344 0 1024])
-    axis off
-    pause
-    clf
-    
-end
 
 %% Drawing dots and tadpoles then computing correlation 
 %Clipping X and Y positions so at index 1, frame is 90
@@ -466,38 +412,6 @@ remFrames = any(actualFramesAndEncount((frme-8):frme(end),2:end) == 1);
 remIdx = find(remFrames == 1);
 actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
-%% Visualization of future frame data 
-
-%loop just shows plot of points along with the actual image of 1 tadpole
-
-c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-figure
-for i = 600:frme
-    mov_img = read(mov,i+89);
-    mov_img = rgb2gray(mov_img);
-    imshow(mov_img)
-    hold on
-    k = 1;
-    cz = mod(k,6)+1;
-    plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
-    plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+2,k),clippedX(i+2,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+3,k),clippedX(i+3,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+4,k),clippedX(i+4,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+5,k),clippedX(i+5,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+6,k),clippedX(i+6,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
-%     plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
-
-    title(['frame: ' num2str(i+89)])
-    
-    set(gca,'YDir','reverse')
-    axis off
-   % axis([1 1344 1 1024])
-    pause
-    
-end
-
 %% Event Detection 
 
 %need to know if tadpoles angle changed between 90 and 180 degrees of where
@@ -563,13 +477,15 @@ for i = 2:length(actualFramesAndEncount(1,:))
 end
 
 save('Final_Avoidance_Data.mat','dataStore')
-
 %END OF PROGRAM
 
 %VALUE of 'dataStore' contains frame at which encounter occurred and if that
 %encounter triggered an event 
 
 %% Provide Average 
+encAvg = zeros(1,length(dataStore));
+numEncount = zeros(1,length(dataStore));
+numAvoid = zeros(1,length(dataStore));
 
 for i = 1:length(dataStore)
     sumOnes = sum(dataStore{i}(:,2) == 1);
@@ -581,6 +497,8 @@ end
 
 tab = table(encAvg', numAvoid', numEncount', 'VariableNames', {'AvoidanceIndex',...
     'NumberAvoidances', 'NumberEncounters'});
+writetable(tab)
+end
 
 %% References and Dependencies 
 
