@@ -12,18 +12,18 @@ vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-img = zeros(vidH,vidW,numFrames);
+%img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Taking Median of video frames
 for i = 1:numFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
-    img_tmp = imopen(img_tmp, strel('disk',25));
-    img(:,:,i) = img_tmp;
+    %img_tmp = imopen(img_tmp, strel('disk',25));
+    noDot_img(:,:,i) = img_tmp;
 end
 
-bck_img = (mean(img,3));
+bck_img = (mean(noDot_img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
@@ -39,7 +39,7 @@ end
 %for example video 95 hsizeh=60 and sigmah=8
 
 hsizeh = 60;  
-sigmah = 6;   
+sigmah = 4;   
 h = fspecial('log', hsizeh, sigmah);
 
 %% Iteratively finding tadpoles from blobs
@@ -64,7 +64,7 @@ for i = 1:numFrames-(s_frame-1)
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
-    idx = find(blob_img < 0.1); 
+    idx = find(blob_img < 0.7); 
     blob_img(idx) = nan;
     
     %Finds peak indices for blobs
@@ -241,10 +241,10 @@ Q_loc_estimateY(:,removePoints) = [];
 % xright = 1230;
 
 %values for channel system (xright = 1280)
-ytop = 130;
+ytop = 150;
 ybott = 900;
-xleft = 80;
-xright = 1125;
+xleft = 90;
+xright = 1260;
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
@@ -261,7 +261,7 @@ for i = 90:numFrames
     minus_bck = croped_orig - backg;
     adj_mius = imadjust(minus_bck);
     str_mius = imopen(adj_mius, strel('disk',4));
-    %str_mius = str_mius*2;
+    str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
@@ -498,6 +498,7 @@ end
 tab = table(encAvg', numAvoid', numEncount', 'VariableNames', {'AvoidanceIndex',...
     'NumberAvoidances', 'NumberEncounters'});
 writetable(tab)
+
 end
 
 %% References and Dependencies 
