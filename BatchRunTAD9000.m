@@ -6,24 +6,31 @@ cd(directory);
 
 mov_list = dir('*avi');
 
-for i = 1:length(mov_list)
+for i = 2:length(mov_list)
     [~,mov_name,~] = fileparts(mov_list(i).name);
     mov = VideoReader(mov_list(i).name);
     
     mkdir(mov_name)
     cd(mov_name)
     
-    [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTest(mov);
+    try
+        [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTest(mov);
+        
+        f_name = string(zeros(1,length(encAvg{i})));
+        for j = 1:length(encAvg{i})
+            f_name(1,j) = string(mov_name);
+        end
     
+        v_name{i} = f_name;
     
-    f_name = string(zeros(1,length(encAvg{i})));
-    for j = 1:length(encAvg{i})
-        f_name(1,j) = string(mov_name);
+        cd(mov.path)
+    catch e
+        fprintf(2,'An error occurred in processing %s.\n',mov_name)
+        fprintf(2,'The error message was:\n%s\n',e.message)
+        cd(mov.path)
+        continue
     end
     
-    v_name{i} = f_name;
-    
-    cd(mov.path)
 end
 
 name = cat(2,v_name{1:end});

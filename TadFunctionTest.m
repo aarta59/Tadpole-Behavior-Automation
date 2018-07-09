@@ -12,7 +12,7 @@ vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-%img = zeros(vidH,vidW,numFrames);
+img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Taking Median of video frames
@@ -20,10 +20,10 @@ for i = 1:numFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
     %img_tmp = imopen(img_tmp, strel('disk',25));
-    noDot_img(:,:,i) = img_tmp;
+   img(:,:,i) = img_tmp;
 end
 
-bck_img = (mean(noDot_img,3));
+bck_img = (mean(img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
@@ -39,7 +39,7 @@ end
 %for example video 95 hsizeh=60 and sigmah=8
 
 hsizeh = 60;  
-sigmah = 4;   
+sigmah = 5;   
 h = fspecial('log', hsizeh, sigmah);
 
 %% Iteratively finding tadpoles from blobs
@@ -85,6 +85,13 @@ for i = 1:numFrames-(s_frame-1)
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
+    %Gives error if poor detections (likley due to tadpoles not moving)
+    init_det = length(X{1});
+    if length(X{i}) < (init_det/2)
+        error('Too few detections')
+    end
+    
+    %Displays progress of detection process
     if i == (round((numFrames-(s_frame-1))/2))
         disp('Tadpole detection is 50% complete')
     elseif i == (numFrames-(s_frame-1))
@@ -111,9 +118,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 3; %variability in tadpole speed 
-tmn_x = 2; %noise in horizontal direction, x-axis
-tmn_y = 2; %noise in vertical direction, y-axis
+Tad_noise_mag = 10; %variability in tadpole speed 
+tmn_x = 5; %noise in horizontal direction, x-axis
+tmn_y = 5; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -136,7 +143,7 @@ Q_est = nan(4,2000);
 Q_est(:,1:size(Q,2)) = Q; %initial location estimate
 Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
-numDet = size(X{1},1); %number of detections
+%numDet = size(X{1},1); %number of detections
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
 
 for t = 1:length(X)
@@ -145,7 +152,7 @@ for t = 1:length(X)
     Q_loc_measure = [X{t} Y{t}];
     
     %Kalman Filter
-    numDet = size(X{t},1);
+    %numDet = size(X{t},1);
     for F = 1:numF
         Q_est(:,F) = A * Q_est(:,F) + B * u;
     end
@@ -217,14 +224,14 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 
 %% Removing Bad Detections
 
-%removes columns where detection is not in frame
-removeX = any(Q_loc_estimateX<0 | Q_loc_estimateX>vidH);
-removeY = any(Q_loc_estimateY<0 | Q_loc_estimateY>vidW);
-removePoints = [removeX; removeY];
-removePoints = any(removePoints == 1);
-
-Q_loc_estimateX(:,removePoints) = [];
-Q_loc_estimateY(:,removePoints) = [];
+%detections out of video boundary are given nan values
+for i = 1:length(Q_loc_estimateX(1,:))
+    removeX = find(Q_loc_estimateX(:,i)<0 | Q_loc_estimateX(:,i)>vidH);
+    removeY = find(Q_loc_estimateY(:,i)<0 | Q_loc_estimateY(:,i)>vidW);
+    
+    Q_loc_estimateX(removeX,i) = nan;
+    Q_loc_estimateY(removeY,i) = nan;
+end
 
 %% Tracking of Dots Returning Radii/Centers 
 
@@ -265,7 +272,7 @@ for i = 90:numFrames
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
-        'ObjectPolarity','bright', 'Sensitivity',0.90);
+        'ObjectPolarity','bright', 'Sensitivity',0.91);
     
     if i == (round(dotLoopLength*0.25))
         disp('Dot detection is 25% complete')
@@ -290,6 +297,15 @@ clippedY = Q_loc_estimateY(76:end,:);
 %Clipping dot centers and radius so index 1, frame is 90
 clipCenters = allcenter(90:end);
 clipRadius = allradius(90:end);
+
+%Checking if first dot frame has locations removing if no dots detected
+if isempty(allcenter{90}) == 1
+    clippedX = Q_loc_estimateX(77:end,:);
+    clippedY = Q_loc_estimateY(77:end,:);
+    
+    clipCenters = allcenter(91:end);
+    clipRadius = allradius(91:end);
+end
 
 [frme, tads] = size(clippedX);
 
@@ -495,9 +511,6 @@ for i = 1:length(dataStore)
     numAvoid(i) = sumOnes;
 end
 
-tab = table(encAvg', numAvoid', numEncount', 'VariableNames', {'AvoidanceIndex',...
-    'NumberAvoidances', 'NumberEncounters'});
-writetable(tab)
 
 end
 

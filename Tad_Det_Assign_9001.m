@@ -22,7 +22,7 @@ vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-%img = zeros(vidH,vidW,numFrames);
+img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
 
 %Taking Median of video frames
@@ -30,10 +30,10 @@ for i = 1:numFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
     %img_tmp = imopen(img_tmp, strel('disk',25));
-    noDot_img(:,:,i) = img_tmp;
+    img(:,:,i) = img_tmp;
 end
 
-bck_img = (mean(noDot_img,3));
+bck_img = (mean(img,3));
 bck_img = uint8(bck_img);
 
 %Removing dots from each frame and saving to new matrix
@@ -52,12 +52,12 @@ end
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
 hsizeh = 60;  
-sigmah = 4;   
+sigmah = 5;   
 h = fspecial('log', hsizeh, sigmah);
 
 
 %enter number of tadpoles in video for auto threshold
-%tad_number = 6;
+% tad_number = 10;
 
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
@@ -84,19 +84,26 @@ for i = 1:numFrames-(s_frame-1)
     
 
     %Section for auto threshold based on number of expected detections
-%     thresh = 0.040;
+%     thresh = 0.61;
 %     while length(imax) > tad_number 
 %         idx = find(blob_img < thresh); 
 %         blob_img(idx) = nan;
 %         [~,imax,~,~] = extrema2(blob_img);
 %             
 %         if length(imax) > tad_number
-%             thresh = thresh + 0.002;
+%             thresh = thresh + 0.01;
 %         end
 %     end
     
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
+    %Gives error if poor detections (likley due to tadpoles not moving)
+    init_det = length(X{1});
+    if length(X{i}) < (init_det/2)
+        error('Too few detections')
+    end
+    
+    %Displays progress of detection process
     if i == (round((numFrames-(s_frame-1))/2))
         disp('Tadpole detection is 50% complete')
     elseif i == (numFrames-(s_frame-1))
@@ -117,15 +124,16 @@ end
 
 save('raw_tad_detections.mat','X','Y')
 
+
 %% Kalman Filter Variable Definitions 
 
 %These values should be changed to allow for more accurate assignment
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 1; %variability in tadpole speed 
-tmn_x = 0.5; %noise in horizontal direction, x-axis
-tmn_y = 0.5; %noise in vertical direction, y-axis
+Tad_noise_mag = 10; %variability in tadpole speed 
+tmn_x = 5; %noise in horizontal direction, x-axis
+tmn_y = 5; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -148,7 +156,7 @@ Q_est = nan(4,2000);
 Q_est(:,1:size(Q,2)) = Q; %initial location estimate
 Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
-numDet = size(X{1},1); %number of detections (possibly uneeded intit.)
+%numDet = size(X{1},1); %number of detections (possibly uneeded intit.)
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
 
 for t = 1:length(X)
@@ -157,7 +165,7 @@ for t = 1:length(X)
     Q_loc_measure = [X{t} Y{t}];
     
     %Kalman Filter
-    numDet = size(X{t},1);
+    %numDet = size(X{t},1);
     for F = 1:numF
         Q_est(:,F) = A * Q_est(:,F) + B * u;
     end
@@ -210,6 +218,9 @@ for t = 1:length(X)
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
     
 %     imagesc(noDot_img(:,:,t));
+%     img = read(mov,t+14);
+%     img = rgb2gray(img);
+%     imshow(img);
 %     hold on;
 %     
 %     %plot(Y{t}(:), X{t}(:), 'or'); %actual track plot
@@ -230,14 +241,14 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 
 %% Removing Bad Detections
 
-%removes columns where detection is not in frame
-removeX = any(Q_loc_estimateX<0 | Q_loc_estimateX>vidH);
-removeY = any(Q_loc_estimateY<0 | Q_loc_estimateY>vidW);
-removePoints = [removeX; removeY];
-removePoints = any(removePoints == 1);
-
-Q_loc_estimateX(:,removePoints) = [];
-Q_loc_estimateY(:,removePoints) = [];
+%removes values where detection is out of bounds
+for i = 1:length(Q_loc_estimateX(1,:))
+    removeX = find(Q_loc_estimateX(:,i)<0 | Q_loc_estimateX(:,i)>vidH);
+    removeY = find(Q_loc_estimateY(:,i)<0 | Q_loc_estimateY(:,i)>vidW);
+    
+    Q_loc_estimateX(removeX,i) = nan;
+    Q_loc_estimateY(removeY,i) = nan;
+end
 
 %% Plots location estimates
 
@@ -316,18 +327,23 @@ save('dot_centers_radii.mat','allcenter','allradius')
 
 %% Check for position of dots
 
-theta = 0:0.5:(2*pi);
+theta = 0:0.2:(2*pi);
 %imagesc(dotzeros)
 
-for i = 91:length(allcenter)
-    orig_img = read(mov,i);
+for i = 1:length(clipCenters)
+    orig_img = read(mov,i+89);
     orig_img = rgb2gray(orig_img);
     imshow(orig_img)
     
     hold on
-    pline_x = allradius{i}*cos(theta) + allcenter{i}(:,1);
-    pline_y = allradius{i}*sin(theta) + allcenter{i}(:,2);
+    pline_x = clipRadius{i}*cos(theta) + clipCenters{i}(:,1);
+    pline_y = clipRadius{i}*sin(theta) + clipCenters{i}(:,2);
     plot(pline_x,pline_y,'.r');
+    
+        for k = 1:numDetections
+            cz = mod(k,6)+1;
+            plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
+        end
     set(gca,'Ydir','reverse');
 %     axis([0 1344 0 1024])
     axis off
@@ -344,6 +360,14 @@ clippedY = Q_loc_estimateY(76:end,:);
 %Clipping dot centers and radius so index 1, frame is 90
 clipCenters = allcenter(90:end);
 clipRadius = allradius(90:end);
+
+if isempty(allcenter{90}) == 1
+    clippedX = Q_loc_estimateX(77:end,:);
+    clippedY = Q_loc_estimateY(77:end,:);
+    
+    clipCenters = allcenter(91:end);
+    clipRadius = allradius(91:end);
+end
 
 [frme, tads] = size(clippedX);
 
@@ -472,7 +496,7 @@ actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 figure
-for i = 600:frme
+for i = 100:frme
     mov_img = read(mov,i+89);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
