@@ -6,7 +6,7 @@ cd(directory);
 
 mov_list = dir('*avi');
 
-for i = 2:length(mov_list)
+for i = 1:length(mov_list)
     [~,mov_name,~] = fileparts(mov_list(i).name);
     mov = VideoReader(mov_list(i).name);
     

@@ -291,21 +291,34 @@ save('dot_centers_radii.mat','allcenter','allradius')
 
 %% Drawing dots and tadpoles then computing correlation 
 %Clipping X and Y positions so at index 1, frame is 90
-clippedX = Q_loc_estimateX(76:end,:);
-clippedY = Q_loc_estimateY(76:end,:);
+% clippedX = Q_loc_estimateX(76:end,:);
+% clippedY = Q_loc_estimateY(76:end,:);
+% 
+% %Clipping dot centers and radius so index 1, frame is 90
+% clipCenters = allcenter(90:end);
+% clipRadius = allradius(90:end);
+% 
+% %Checking if first dot frame has locations removing if no dots detected
+% if isempty(allcenter{90}) == 1
+%     clippedX = Q_loc_estimateX(77:end,:);
+%     clippedY = Q_loc_estimateY(77:end,:);
+%     
+%     clipCenters = allcenter(91:end);
+%     clipRadius = allradius(91:end);
+% end
 
-%Clipping dot centers and radius so index 1, frame is 90
-clipCenters = allcenter(90:end);
-clipRadius = allradius(90:end);
+%Add empty values to location data for size correction
+Q_loc_estimateX = [nan(14,length(Q_loc_estimateX(1,:))); Q_loc_estimateX];
+Q_loc_estimateY = [nan(14,length(Q_loc_estimateY(1,:))); Q_loc_estimateY];
 
-%Checking if first dot frame has locations removing if no dots detected
-if isempty(allcenter{90}) == 1
-    clippedX = Q_loc_estimateX(77:end,:);
-    clippedY = Q_loc_estimateY(77:end,:);
-    
-    clipCenters = allcenter(91:end);
-    clipRadius = allradius(91:end);
-end
+%clipping size of positions based on length of dot detections
+idx_clip = find(~cellfun('isempty',allradius));
+
+clippedX = Q_loc_estimateX(idx_clip',:);
+clippedY = Q_loc_estimateY(idx_clip',:);
+
+clipCenters = allcenter(idx_clip);
+clipRadius = allradius(idx_clip);
 
 [frme, tads] = size(clippedX);
 
@@ -361,7 +374,7 @@ for i = 1:frme
         %looks at every dot center point and finds distance from dot center
         %to all points around tadpole
         dotEncount = 0;
-        for k = 1:length(cenXYRad)
+        for k = 1:length(cenXYRad(:,1))
 
             dist_Circ = sqrt((pline_x - cenXYRad(k,2)).^2 + (pline_y - cenXYRad(k,1)).^2);
             

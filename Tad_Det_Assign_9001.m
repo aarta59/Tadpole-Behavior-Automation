@@ -131,9 +131,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 10; %variability in tadpole speed 
-tmn_x = 5; %noise in horizontal direction, x-axis
-tmn_y = 5; %noise in vertical direction, y-axis
+Tad_noise_mag = 15; %variability in tadpole speed 
+tmn_x = 10; %noise in horizontal direction, x-axis
+tmn_y = 10; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -354,20 +354,34 @@ end
 
 %% Drawing dots and tadpoles then computing correlation 
 %Clipping X and Y positions so at index 1, frame is 90
-clippedX = Q_loc_estimateX(76:end,:);
-clippedY = Q_loc_estimateY(76:end,:);
+% clippedX = Q_loc_estimateX(76:end,:);
+% clippedY = Q_loc_estimateY(76:end,:);
 
 %Clipping dot centers and radius so index 1, frame is 90
-clipCenters = allcenter(90:end);
-clipRadius = allradius(90:end);
+% clipCenters = allcenter(90:end);
+% clipRadius = allradius(90:end);
 
-if isempty(allcenter{90}) == 1
-    clippedX = Q_loc_estimateX(77:end,:);
-    clippedY = Q_loc_estimateY(77:end,:);
-    
-    clipCenters = allcenter(91:end);
-    clipRadius = allradius(91:end);
-end
+%Add empty values to location data for size correction
+Q_loc_estimateX = [nan(14,length(Q_loc_estimateX(1,:))); Q_loc_estimateX];
+Q_loc_estimateY = [nan(14,length(Q_loc_estimateY(1,:))); Q_loc_estimateY];
+
+%clipping size of positions based on length of dot detections
+idx_clip = find(~cellfun('isempty',allradius));
+
+clippedX = Q_loc_estimateX(idx_clip',:);
+clippedY = Q_loc_estimateY(idx_clip',:);
+
+clipCenters = allcenter(idx_clip);
+clipRadius = allradius(idx_clip);
+
+
+% if isempty(allcenter{90}) == 1
+%     clippedX = Q_loc_estimateX(77:end,:);
+%     clippedY = Q_loc_estimateY(77:end,:);
+%     
+%     clipCenters = allcenter(91:end);
+%     clipRadius = allradius(91:end);
+% end
 
 [frme, tads] = size(clippedX);
 
@@ -423,7 +437,7 @@ for i = 1:frme
         %looks at every dot center point and finds distance from dot center
         %to all points around tadpole
         dotEncount = 0;
-        for k = 1:length(cenXYRad)
+        for k = 1:length(cenXYRad(:,1))
 
             dist_Circ = sqrt((pline_x - cenXYRad(k,2)).^2 + (pline_y - cenXYRad(k,1)).^2);
             
@@ -496,12 +510,12 @@ actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 figure
-for i = 100:frme
-    mov_img = read(mov,i+89);
+for i = 145:frme
+    mov_img = read(mov,i+90);
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    k = 1;
+    k = 2;
     cz = mod(k,6)+1;
     plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
     plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
