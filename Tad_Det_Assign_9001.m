@@ -46,13 +46,12 @@ for i = 1:numFrames
 end
 
 
-
 %% Iteratively finding tadpoles from blobs
 
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
 hsizeh = 60;  
-sigmah = 5;   
+sigmah = 5.1;   
 h = fspecial('log', hsizeh, sigmah);
 
 
@@ -67,34 +66,36 @@ X = cell(1,numFrames-(s_frame-1)); %detection X coordinate
 Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
 for i = 1:numFrames-(s_frame-1)
-    %img_real = (read(mov,i));
-    bck_img = double(bck_img);
+    %Gets better view of inside detections
+    bck_img1 = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
-    sub_img = (img - bck_img);
+    sub_img1 = (img - bck_img1);
+
+    blob_img1 = conv2(sub_img1,h,'same');
+    idx1 = find(blob_img1 < 0.7); 
+    blob_img1(idx1) = nan;
+    
+    %Gets better view of outside detections
+    img_comp = imcomplement(uint8(noDot_img(:,:,i+(s_frame-1))));
+    img_comp = imreducehaze(img_comp);
+    img_comp = imcomplement(img_comp);
+    sub_img = img_comp - bck_img;
 
     %Blob Filtering (orig. 'same', try 'full')
     blob_img = conv2(sub_img,h,'same');
  
-    %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
+    %Thresholding level for blob (0.7 default)
     idx = find(blob_img < 0.7); 
     blob_img(idx) = nan;
     
+    %Fuses images of center and outside detections
+    blob_img = imfuse(blob_img1,blob_img);
+    blob_img = rgb2gray(blob_img);
+    blob_img = double(blob_img);
+    
     %Finds peak indices for blobs
     [~,imax,~,~] = extrema2(blob_img); 
-    
-
-    %Section for auto threshold based on number of expected detections
-%     thresh = 0.61;
-%     while length(imax) > tad_number 
-%         idx = find(blob_img < thresh); 
-%         blob_img(idx) = nan;
-%         [~,imax,~,~] = extrema2(blob_img);
-%             
-%         if length(imax) > tad_number
-%             thresh = thresh + 0.01;
-%         end
-%     end
-    
+       
     [X{i},Y{i}] = ind2sub(size(blob_img),imax);
     
     %Gives error if poor detections (likley due to tadpoles not moving)
@@ -119,7 +120,7 @@ for i = 1:numFrames-(s_frame-1)
 %     axis off
 %     
 %     pause
-%       
+      
 end
 
 save('raw_tad_detections.mat','X','Y')
@@ -131,7 +132,7 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 15; %variability in tadpole speed 
+Tad_noise_mag = 20; %variability in tadpole speed 
 tmn_x = 10; %noise in horizontal direction, x-axis
 tmn_y = 10; %noise in vertical direction, y-axis
 
@@ -182,20 +183,20 @@ for t = 1:length(X)
     est_dist = est_dist(1:numF, numF+1:end);
     
     [asign, cost] = munkres(est_dist);
-    asign = asign';
+    %asign = asign';
     
     %checking if detection far from observation
     reject = [];
     
-    for F = 1:numF
-        if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 100;
-        else
-            reject(F) = 0;
-        end
-    end
+%     for F = 1:numF
+%         if asign(F) > 0
+%             reject(F) = est_dist(F,asign(F)) < 200;
+%         else
+%             reject(F) = 0;
+%         end
+%     end
     
-    asign = asign.*reject;
+%     asign = asign.*reject;
         
     %Assign updated detections
     k = 1;
@@ -213,6 +214,13 @@ for t = 1:length(X)
     Q_loc_estimateX(t,1:numF) = Q_est(1,1:numF);
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
     
+%     new_trk = [];
+%     new_trk = Q_loc_measure(~ismember(1:size(Q_loc_measure,1),asign),:)';
+%     if ~isempty(new_trk)
+%         Q_est(:,numF+1:numF+size(new_trk,2))=  [new_trk; zeros(2,size(new_trk,2))];
+%         numF = numF + size(new_trk,2);  % number of track estimates with new ones included
+%     end
+        
     %Remove nan values and store 
     Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
@@ -250,6 +258,7 @@ for i = 1:length(Q_loc_estimateX(1,:))
     Q_loc_estimateY(removeY,i) = nan;
 end
 
+
 %% Plots location estimates
 
 %get dimentions of location estimates
@@ -260,7 +269,7 @@ hold on
 axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
-for j = 1:numPositions
+for j = 1:numPositions 
     imagesc(noDot_img(:,:,j+14))
     for i = 1:numDetections
         cz = mod(i,6)+1;
@@ -295,7 +304,7 @@ allradius = cell(1,numFrames); %radius of each detected dot
 dotzeros = uint8(zeros(vidH,vidW));
 dotLoopLength = length(90:numFrames);
 
-for i = 90:numFrames
+for i = 90:numFrames 
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
     croped_orig = orig_img(ytop:ybott,xleft:xright,:);
@@ -331,7 +340,7 @@ theta = 0:0.2:(2*pi);
 %imagesc(dotzeros)
 
 for i = 1:length(clipCenters)
-    orig_img = read(mov,i+89);
+    orig_img = read(mov,i+(idx_clip(1)-1));
     orig_img = rgb2gray(orig_img);
     imshow(orig_img)
     
@@ -497,7 +506,7 @@ within2frAndVelocity = [zeros(1,tads); within2frAndVelocity];
 
 actualEncounters = encounterMatrix.*within2frAndVelocity;
 
-actualFramesAndEncount = [((1:frme)+89)' actualEncounters];
+actualFramesAndEncount = [((1:frme)+(idx_clip(1)-1))' actualEncounters];
 
 %removes last 8 encounters
 remFrames = any(actualFramesAndEncount((frme-8):frme(end),2:end) == 1);
@@ -510,8 +519,8 @@ actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
 
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 figure
-for i = 145:frme
-    mov_img = read(mov,i+90);
+for i = 1:frme
+    mov_img = read(mov,i+(idx_clip(1)-1));
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
@@ -527,7 +536,7 @@ for i = 145:frme
 %     plot(clippedY(i+7,k),clippedX(i+7,k), 'o', 'color', c_list(cz))
 %     plot(clippedY(i+8,k),clippedX(i+8,k), 'o', 'color', c_list(cz))
 
-    title(['frame: ' num2str(i+89)])
+    title(['frame: ' num2str(i+(idx_clip(1)-1))])
     
     set(gca,'YDir','reverse')
     axis off
@@ -595,7 +604,7 @@ for i = 2:length(actualFramesAndEncount(1,:))
     end
     
     event = any(event_count)';
-    encounterFrameandEvent = [(encounter+89) event];
+    encounterFrameandEvent = [(encounter+(idx_clip(1)-1)) event];
     
     dataStore{i-1} = encounterFrameandEvent;
 end

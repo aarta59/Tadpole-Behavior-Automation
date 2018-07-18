@@ -55,17 +55,31 @@ X = cell(1,numFrames-(s_frame-1)); %detection X coordinate
 Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
 for i = 1:numFrames-(s_frame-1)
-    %img_real = (read(mov,i));
-    bck_img = double(bck_img);
+    bck_img1 = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
-    sub_img = (img - bck_img);
+    sub_img1 = (img - bck_img1);
 
-    %Blob Filtering
+    blob_img1 = conv2(sub_img1,h,'same');
+    idx1 = find(blob_img1 < 0.7); 
+    blob_img1(idx1) = nan;
+    
+    %Gets better view of outside detections
+    img_comp = imcomplement(uint8(noDot_img(:,:,i+(s_frame-1))));
+    img_comp = imreducehaze(img_comp);
+    img_comp = imcomplement(img_comp);
+    sub_img = img_comp - bck_img;
+
+    %Blob Filtering (orig. 'same', try 'full')
     blob_img = conv2(sub_img,h,'same');
  
-    %Thresholding level for blob (0.032 ex 95, 0.4 ex 96)
+    %Thresholding level for blob (0.7 default)
     idx = find(blob_img < 0.7); 
     blob_img(idx) = nan;
+    
+    %Fuses images of center and outside detections
+    blob_img = imfuse(blob_img1,blob_img);
+    blob_img = rgb2gray(blob_img);
+    blob_img = double(blob_img);
     
     %Finds peak indices for blobs
     [~,imax,~,~] = extrema2(blob_img); 
@@ -118,9 +132,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 10; %variability in tadpole speed 
-tmn_x = 5; %noise in horizontal direction, x-axis
-tmn_y = 5; %noise in vertical direction, y-axis
+Tad_noise_mag = 20; %variability in tadpole speed 
+tmn_x = 10; %noise in horizontal direction, x-axis
+tmn_y = 10; %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -172,17 +186,17 @@ for t = 1:length(X)
     asign = asign';
     
     %checking if detection far from observation
-    reject = [];
-    
-    for F = 1:numF
-        if asign(F) > 0
-            reject(F) = est_dist(F,asign(F)) < 100;
-        else
-            reject(F) = 0;
-        end
-    end
-    
-    asign = asign.*reject;
+%     reject = [];
+%     
+%     for F = 1:numF
+%         if asign(F) > 0
+%             reject(F) = est_dist(F,asign(F)) < 100;
+%         else
+%             reject(F) = 0;
+%         end
+%     end
+%     
+%     asign = asign.*reject;
         
     %Assign updated detections
     k = 1;
@@ -434,7 +448,7 @@ within2frAndVelocity = [zeros(1,tads); within2frAndVelocity];
 
 actualEncounters = encounterMatrix.*within2frAndVelocity;
 
-actualFramesAndEncount = [((1:frme)+89)' actualEncounters];
+actualFramesAndEncount = [((1:frme)+(idx_clip(1)-1))' actualEncounters];
 
 %removes last 8 encounters
 remFrames = any(actualFramesAndEncount((frme-8):frme(end),2:end) == 1);
@@ -500,7 +514,7 @@ for i = 2:length(actualFramesAndEncount(1,:))
     end
     
     event = any(event_count)';
-    encounterFrameandEvent = [(encounter+89) event];
+    encounterFrameandEvent = [(encounter+(idx_clip(1)-1)) event];
     
     dataStore{i-1} = encounterFrameandEvent;
 end
