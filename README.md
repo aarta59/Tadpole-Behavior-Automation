@@ -16,3 +16,18 @@ To run the BatchRunTAD9000.m script or the TadFunctionTest.m function the two ab
 
 Once installed the BatchRunTAD9000.m should be opened in the same folder as the TadFunctionTest.m. From the BatchRunTAD9000.m script hit run and select the folder containing the videos taken during the stimulus trials. This will begin the video analysis process creating folders for each video run saving location and avoidance data throughout the process. Videos with detections of less than half of the detections in the first frame analyzed will be skipped and shown as an error. 
 
+### Situational Adjustments:
+- Depth of Gaussian filter
+- Threshold value for detections
+- Tadpole speed variability and, X and Y noise
+- Acceptable distance for assignment based on detections
+- Area to crop out of video for dot detection
+- Distance between tadpole gut and eyes
+- Angle tolerance for avoidance determination
+
+### Screenshots:
+![tadpoleoriginal](https://user-images.githubusercontent.com/41453184/43158936-dd0b34a2-8f35-11e8-88a6-6bb53058d6ca.png)
+The original image from the behavior videos before any image processing is shown above. 
+
+![tadpoledotsandassignments](https://user-images.githubusercontent.com/41453184/43158847-9c6ff4d2-8f35-11e8-905a-e43e728ef397.png)
+After tadpole detection and assignment and, dot detection the overlay of the extracted location data can be seen visually above. 
