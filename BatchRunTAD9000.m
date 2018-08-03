@@ -1,10 +1,21 @@
-% This is for batch running multiple movies with the TAD9000 function
+ % This is for batch running multiple movies with the TAD9000 function
 clear
 
 directory = uigetdir;
 cd(directory);
 
 mov_list = dir('*avi');
+
+def = {'60','4.5','0.88','20','10','10','15','70','110'};
+prompt = {'Gaussian hsize','Gaussian standard deviation (sigma)',...
+    'Detection thresholding value', 'Tadpole speed variability',...
+    'Tadpole X direction noise', 'Tadpole Y direction noise',...
+    'Tadpole distance between eyes and gut', 'Lower avoidance angle tolerance',...
+    'Higher avoidance angle tolerance'};
+defAns = {char(def(1)), char(def(2)), char(def(3)), char(def(4)),...
+    char(def(5)), char(def(6)), char(def(7)), char(def(8)), char(def(9))};
+answer = inputdlg(prompt,'Initial Values', [1 1 1 1 1 1 1 1 1], defAns);
+answer = str2double(answer);
 
 for i = 1:length(mov_list)
     [~,mov_name,~] = fileparts(mov_list(i).name);
@@ -14,7 +25,7 @@ for i = 1:length(mov_list)
     cd(mov_name)
     
     try
-        [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTest(mov);
+        [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTestv2(mov,answer);
         
         f_name = string(zeros(1,length(encAvg{i})));
         for j = 1:length(encAvg{i})

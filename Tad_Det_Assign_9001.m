@@ -16,8 +16,21 @@ folder = fullfile(directory);
 movFullFile = fullfile(folder, moviename);
 mov = VideoReader(movFullFile);
 
+%5.1,0.7 (gauss size, thresh)
+%Initial program value definitions
+def = {'60','4.5','0.88','20','10','10','15','70','110'};
+prompt = {'Gaussian hsize','Gaussian standard deviation (sigma)',...
+    'Detection thresholding value', 'Tadpole speed variability',...
+    'Tadpole X direction noise', 'Tadpole Y direction noise',...
+    'Tadpole distance between eyes and gut', 'Lower avoidance angle tolerance',...
+    'Higher avoidance angle tolerance'};
+defAns = {char(def(1)), char(def(2)), char(def(3)), char(def(4)),...
+    char(def(5)), char(def(6)), char(def(7)), char(def(8)), char(def(9))};
+answer = inputdlg(prompt,'Initial Values', [1 1 1 1 1 1 1 1 1], defAns);
+answer = str2double(answer);
+
 %Video dimentions
-numFrames = mov.NumberOfFrames;
+numFrames = mov.NumberOfFrames; 
 vidH = mov.Height;
 vidW = mov.Width;
 
@@ -50,13 +63,9 @@ end
 
 % Initialize log gaussian filter
 %for example video 95 hsizeh=60 and sigmah=8
-hsizeh = 60;  
-sigmah = 5.1;   
+hsizeh = answer(1);  
+sigmah = answer(2);  
 h = fspecial('log', hsizeh, sigmah);
-
-
-%enter number of tadpoles in video for auto threshold
-% tad_number = 10;
 
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
@@ -72,7 +81,7 @@ for i = 1:numFrames-(s_frame-1)
     sub_img1 = (img - bck_img1);
 
     blob_img1 = conv2(sub_img1,h,'same');
-    idx1 = find(blob_img1 < 0.7); 
+    idx1 = find(blob_img1 < answer(3)); 
     blob_img1(idx1) = nan;
     
     %Gets better view of outside detections
@@ -81,11 +90,11 @@ for i = 1:numFrames-(s_frame-1)
     img_comp = imcomplement(img_comp);
     sub_img = img_comp - bck_img;
 
-    %Blob Filtering (orig. 'same', try 'full')
+    %Blob Filtering
     blob_img = conv2(sub_img,h,'same');
  
-    %Thresholding level for blob (0.7 default)
-    idx = find(blob_img < 0.7); 
+    %Thresholding level for blob (0.7 default)    
+    idx = find(blob_img < answer(3)); 
     blob_img(idx) = nan;
     
     %Fuses images of center and outside detections
@@ -115,7 +124,7 @@ for i = 1:numFrames-(s_frame-1)
 %     imagesc(blob_img)
 %     hold on
 %     for j = 1:length(X{i})
-%        plot(Y{i}(j),X{i}(j),'or')
+%        plot(Y{i}(j),X{i}(j),'or') 
 %     end
 %     axis off
 %     
@@ -132,9 +141,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 20; %variability in tadpole speed 
-tmn_x = 10; %noise in horizontal direction, x-axis
-tmn_y = 10; %noise in vertical direction, y-axis
+Tad_noise_mag = answer(4); %variability in tadpole speed 
+tmn_x = answer(5); %noise in horizontal direction, x-axis
+tmn_y = answer(6); %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -270,6 +279,10 @@ axis off
 set(gca,'YDir','reverse')
 c_list = ['r' 'b' 'g' 'c' 'm' 'y'];
 for j = 1:numPositions 
+%     img = read(mov,j+14);
+%     img = rgb2gray(img);
+%     imshow(img)
+    hold on
     imagesc(noDot_img(:,:,j+14))
     for i = 1:numDetections
         cz = mod(i,6)+1;
@@ -292,7 +305,7 @@ end
 % xleft = 100;
 % xright = 1230;
 
-%values for channel system (xright = 1280)
+%values for channel system (150,900,90,1260)
 ytop = 150;
 ybott = 900;
 xleft = 90;
@@ -315,6 +328,7 @@ for i = 90:numFrames
     str_mius = imopen(adj_mius, strel('disk',4));
     str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
+    
 
     [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
         'ObjectPolarity','bright', 'Sensitivity',0.91);
@@ -333,33 +347,6 @@ end
 
 %Save radii and centers of dots
 save('dot_centers_radii.mat','allcenter','allradius')
-
-%% Check for position of dots
-
-theta = 0:0.2:(2*pi);
-%imagesc(dotzeros)
-
-for i = 1:length(clipCenters)
-    orig_img = read(mov,i+(idx_clip(1)-1));
-    orig_img = rgb2gray(orig_img);
-    imshow(orig_img)
-    
-    hold on
-    pline_x = clipRadius{i}*cos(theta) + clipCenters{i}(:,1);
-    pline_y = clipRadius{i}*sin(theta) + clipCenters{i}(:,2);
-    plot(pline_x,pline_y,'.r');
-    
-        for k = 1:numDetections
-            cz = mod(k,6)+1;
-            plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
-        end
-    set(gca,'Ydir','reverse');
-%     axis([0 1344 0 1024])
-    axis off
-    pause
-    clf
-    
-end
 
 %% Drawing dots and tadpoles then computing correlation 
 %Clipping X and Y positions so at index 1, frame is 90
@@ -429,8 +416,8 @@ for i = 1:frme
     for j = 1:tads
         
         %guess of r=15 pixels (eyes 13 pixels from gut of tadpole)
-        pline_x = 15*cos(theta) + clippedX(i,j);
-        pline_y = 15*sin(theta) + clippedY(i,j);
+        pline_x = answer(7)*cos(theta) + clippedX(i,j);
+        pline_y = answer(7)*sin(theta) + clippedY(i,j);
         
         %looks only at points in half-circle in direction of movment
         if t_pad_angle(i,j) < 90
@@ -466,6 +453,32 @@ end
 
 save('encounter_matrix.mat','encounterMatrix')
 
+%% Check for position of dots
+
+theta = 0:0.2:(2*pi);
+%imagesc(dotzeros)
+
+for i = 1:length(clipCenters)
+    orig_img = read(mov,i+(idx_clip(1)-1));
+    orig_img = rgb2gray(orig_img);
+    imshow(orig_img)
+    
+    hold on
+    pline_x = clipRadius{i}*cos(theta) + clipCenters{i}(:,1);
+    pline_y = clipRadius{i}*sin(theta) + clipCenters{i}(:,2);
+    plot(pline_x,pline_y,'.r');
+    
+%         for k = 1:numDetections
+%             cz = mod(k,6)+1;
+%             plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
+%         end
+    set(gca,'Ydir','reverse');
+%     axis([0 1344 0 1024])
+    axis off
+    pause
+    clf
+    
+end
 
 %% Logic for angle checking and velocity checking
 
@@ -524,7 +537,9 @@ for i = 1:frme
     mov_img = rgb2gray(mov_img);
     imshow(mov_img)
     hold on
-    k = 2;
+    
+    k = 10;
+    
     cz = mod(k,6)+1;
     plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
     plot(clippedY(i+1,k),clippedX(i+1,k), 'o', 'color', c_list(cz))
@@ -592,9 +607,9 @@ for i = 2:length(actualFramesAndEncount(1,:))
             %increase tolerance for event here to do this
             %lower first if statment event_angle(r,c) > 85-tolerance
             %increase elseif statment event_angle(r,c) <= 95+tolerance
-            if event_angle(1,c) < 90 && event_angle(r,c) >= 70
+            if event_angle(1,c) < 90 && event_angle(r,c) >= answer(8)
                 event = true;
-            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= 110 && event_angle(r,c) >= 0)
+            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= answer(9) && event_angle(r,c) >= 0)
                 event = true;
             else
                 event = false;

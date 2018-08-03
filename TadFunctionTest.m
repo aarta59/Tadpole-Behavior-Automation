@@ -5,7 +5,7 @@
 %           Scripps Research Institute, La Jolla, California            %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [encAvg,numEncount,numAvoid] = TadFunctionTest(mov)
+function [encAvg,numEncount,numAvoid] = TadFunctionTest(mov,initvals)
 %Video dimentions
 numFrames = mov.NumberOfFrames;
 vidH = mov.Height;
@@ -20,7 +20,7 @@ for i = 1:numFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
     %img_tmp = imopen(img_tmp, strel('disk',25));
-   img(:,:,i) = img_tmp;
+    img(:,:,i) = img_tmp;
 end
 
 bck_img = (mean(img,3));
@@ -36,16 +36,13 @@ for i = 1:numFrames
 end
 
 % Initialize log gaussian filter
-%for example video 95 hsizeh=60 and sigmah=8
+%for example video 95 hsizeh=60 and sigmah=5.1
 
-hsizeh = 60;  
-sigmah = 5;   
+hsizeh = initvals(1);  
+sigmah = initvals(2);   
 h = fspecial('log', hsizeh, sigmah);
 
 %% Iteratively finding tadpoles from blobs
-
-%enter number of tadpoles in video for auto threshold
-%tad_number = 6;
 
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
@@ -60,7 +57,7 @@ for i = 1:numFrames-(s_frame-1)
     sub_img1 = (img - bck_img1);
 
     blob_img1 = conv2(sub_img1,h,'same');
-    idx1 = find(blob_img1 < 0.7); 
+    idx1 = find(blob_img1 < initvals(3)); 
     blob_img1(idx1) = nan;
     
     %Gets better view of outside detections
@@ -73,7 +70,7 @@ for i = 1:numFrames-(s_frame-1)
     blob_img = conv2(sub_img,h,'same');
  
     %Thresholding level for blob (0.7 default)
-    idx = find(blob_img < 0.7); 
+    idx = find(blob_img < initvals(3)); 
     blob_img(idx) = nan;
     
     %Fuses images of center and outside detections
@@ -112,16 +109,6 @@ for i = 1:numFrames-(s_frame-1)
         disp('Tadpole detection is 100% complete')  
     end
     
-    %Plot of raw detections with threshold overlay
-%      imagesc(blob_img)
-%     hold on
-%     for j = 1:length(X{i})
-%        plot(Y{i}(j),X{i}(j),'or')
-%     end
-%     axis off
-%     
-%      pause
-%      
 end
 
 save('raw_tad_detections.mat','X','Y')
@@ -132,9 +119,9 @@ save('raw_tad_detections.mat','X','Y')
 %Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
-Tad_noise_mag = 20; %variability in tadpole speed 
-tmn_x = 10; %noise in horizontal direction, x-axis
-tmn_y = 10; %noise in vertical direction, y-axis
+Tad_noise_mag = initvals(4); %variability in tadpole speed 
+tmn_x = initvals(5); %noise in horizontal direction, x-axis
+tmn_y = initvals(6); %noise in vertical direction, y-axis
 
 %Process noise into covariance matrix (Ex)
 Ez = [tmn_x 0; 0 tmn_y];
@@ -249,19 +236,7 @@ end
 
 %% Tracking of Dots Returning Radii/Centers 
 
-%Cropping movie to remove false dot recognition
-% ytop = 140;
-% ybott = 910;
-% xleft = 90;
-% xright = 1250;
-
-%try with these new values
-% ytop = 160;
-% ybott = 900;
-% xleft = 100;
-% xright = 1230;
-
-%values for channel system (xright = 1280)
+%values cropping movie for channel system (xright = 1280)
 ytop = 150;
 ybott = 900;
 xleft = 90;
@@ -371,8 +346,8 @@ for i = 1:frme
     for j = 1:tads
         
         %guess of r=15 pixels (eyes 13 pixels from gut of tadpole)
-        pline_x = 15*cos(theta) + clippedX(i,j);
-        pline_y = 15*sin(theta) + clippedY(i,j);
+        pline_x = initvals(7)*cos(theta) + clippedX(i,j);
+        pline_y = initvals(7)*sin(theta) + clippedY(i,j);
         
         %looks only at points in half-circle in direction of movment
         if t_pad_angle(i,j) < 90
@@ -502,9 +477,9 @@ for i = 2:length(actualFramesAndEncount(1,:))
             %increase tolerance for event here to do this
             %lower first if statment event_angle(r,c) > 85-tolerance
             %increase elseif statment event_angle(r,c) <= 95+tolerance
-            if event_angle(1,c) < 90 && event_angle(r,c) >= 70
+            if event_angle(1,c) < 90 && event_angle(r,c) >= initvals(8)
                 event = true;
-            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= 110 && event_angle(r,c) >= 0)
+            elseif event_angle(1,c) > 90 && (event_angle(r,c) <= initvals(9) && event_angle(r,c) >= 0)
                 event = true;
             else
                 event = false;
