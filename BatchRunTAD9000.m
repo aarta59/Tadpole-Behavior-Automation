@@ -25,7 +25,7 @@ for i = 1:length(mov_list)
     cd(mov_name)
     
     try
-        [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTestv2(mov,answer);
+        [encAvg{i},numEncount{i},numAvoid{i}] = TadFunctionTest(mov,answer);
         
         f_name = string(zeros(1,length(encAvg{i})));
         for j = 1:length(encAvg{i})
