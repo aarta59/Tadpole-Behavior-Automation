@@ -138,7 +138,6 @@ save('raw_tad_detections.mat','X','Y')
 %% Kalman Filter Variable Definitions 
 
 %These values should be changed to allow for more accurate assignment
-%Current values are working: (dt=1,u=0,tnm=1,tmnx=0.5,tnmy=0.5)
 dt = 1; %sampling rate
 u = 0; %starting acceleration magnitude 
 Tad_noise_mag = answer(4); %variability in tadpole speed 
@@ -192,7 +191,6 @@ for t = 1:length(X)
     est_dist = est_dist(1:numF, numF+1:end);
     
     [asign, cost] = munkres(est_dist);
-    %asign = asign';
     
     %checking if detection far from observation
     reject = [];
@@ -222,14 +220,7 @@ for t = 1:length(X)
     %Store Data
     Q_loc_estimateX(t,1:numF) = Q_est(1,1:numF);
     Q_loc_estimateY(t,1:numF) = Q_est(2,1:numF);
-    
-%     new_trk = [];
-%     new_trk = Q_loc_measure(~ismember(1:size(Q_loc_measure,1),asign),:)';
-%     if ~isempty(new_trk)
-%         Q_est(:,numF+1:numF+size(new_trk,2))=  [new_trk; zeros(2,size(new_trk,2))];
-%         numF = numF + size(new_trk,2);  % number of track estimates with new ones included
-%     end
-        
+            
     %Remove nan values and store 
     Q_loc_estimateX(isnan(Q_loc_estimateX)) = [];
     Q_loc_estimateY(isnan(Q_loc_estimateY)) = [];
@@ -293,18 +284,6 @@ end
     
 %% Tracking of Dots Returning Radii/Centers 
 
-%Cropping movie to remove false dot recognition
-% ytop = 140;
-% ybott = 910;
-% xleft = 90;
-% xright = 1250;
-
-%try with these new values
-% ytop = 160;
-% ybott = 900;
-% xleft = 100;
-% xright = 1230;
-
 %values for channel system (150,900,90,1260)
 ytop = 150;
 ybott = 900;
@@ -349,13 +328,6 @@ end
 save('dot_centers_radii.mat','allcenter','allradius')
 
 %% Drawing dots and tadpoles then computing correlation 
-%Clipping X and Y positions so at index 1, frame is 90
-% clippedX = Q_loc_estimateX(76:end,:);
-% clippedY = Q_loc_estimateY(76:end,:);
-
-%Clipping dot centers and radius so index 1, frame is 90
-% clipCenters = allcenter(90:end);
-% clipRadius = allradius(90:end);
 
 %Add empty values to location data for size correction
 Q_loc_estimateX = [nan(14,length(Q_loc_estimateX(1,:))); Q_loc_estimateX];
@@ -369,15 +341,6 @@ clippedY = Q_loc_estimateY(idx_clip',:);
 
 clipCenters = allcenter(idx_clip);
 clipRadius = allradius(idx_clip);
-
-
-% if isempty(allcenter{90}) == 1
-%     clippedX = Q_loc_estimateX(77:end,:);
-%     clippedY = Q_loc_estimateY(77:end,:);
-%     
-%     clipCenters = allcenter(91:end);
-%     clipRadius = allradius(91:end);
-% end
 
 [frme, tads] = size(clippedX);
 
@@ -468,10 +431,10 @@ for i = 1:length(clipCenters)
     pline_y = clipRadius{i}*sin(theta) + clipCenters{i}(:,2);
     plot(pline_x,pline_y,'.r');
     
-%         for k = 1:numDetections
-%             cz = mod(k,6)+1;
-%             plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
-%         end
+        for k = 1:numDetections
+            cz = mod(k,6)+1;
+            plot(clippedY(i,k),clippedX(i,k), 'o', 'color', c_list(cz))
+        end
     set(gca,'Ydir','reverse');
 %     axis([0 1344 0 1024])
     axis off
