@@ -6,17 +6,23 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [encAvg,numEncount,numAvoid] = TadFunctionTest(mov,initvals)
-%Video dimentions
-numFrames = mov.NumberOfFrames;
+%Video dimensions
+numFrames = 2250; %numFrames = mov.NumOfFrames;
 vidH = mov.Height;
 vidW = mov.Width;
 
 %Initializations 
-img = zeros(vidH,vidW,numFrames);
 noDot_img = zeros(vidH,vidW,numFrames);
+numBgFrames = numFrames; %Number of frames from 0 to use to form average background image; in this case, use all frames
+noDotFrames = 450; %Number of frames in video prior to the start of dot displaying
+imopenThreshold = initvals(10) + 1; ; %Disk radius to use for imopen function (threshold for removing dot detections under a certain size); was 3
+imfindcirclesMin = initvals(10)*5; %Minimum post-imopen disk radius to be detected as a circle; was 10
+imfindcirclesMax = initvals(10)*10; %Maximum post-imopen disk radius to be detected as a circle; was 20
+imfindcirclesSensitivity = 0.93; %Sensitivity of imfindcircles; was originally 0.91
 
 %Taking Median of video frames
-for i = 1:numFrames
+img = zeros(vidH,vidW,numBgFrames);
+for i = 1:numBgFrames
     img_tmp = read(mov,i);
     img_tmp = rgb2gray(img_tmp);
     %img_tmp = imopen(img_tmp, strel('disk',25));
@@ -46,11 +52,13 @@ h = fspecial('log', hsizeh, sigmah);
 
 %Starting frame for detection (start at 15 for even brightness)
 s_frame = 15;
+numTads = 0; %number of tadpoles
 
 %Initialize cells for detection coordinates
 X = cell(1,numFrames-(s_frame-1)); %detection X coordinate 
 Y = cell(1,numFrames-(s_frame-1));  %detection Y coordinate 
 
+tmpB = zeros(vidH,vidW,numFrames); %REMOVE
 for i = 1:numFrames-(s_frame-1)
     bck_img1 = double(bck_img);
     img = noDot_img(:,:,i+(s_frame-1)); 
@@ -68,19 +76,26 @@ for i = 1:numFrames-(s_frame-1)
 
     %Blob Filtering (orig. 'same', try 'full')
     blob_img = conv2(sub_img,h,'same');
- 
+
+    
     %Thresholding level for blob (0.7 default)
     idx = find(blob_img < initvals(3)); 
     blob_img(idx) = nan;
     
     %Fuses images of center and outside detections
-    blob_img = imfuse(blob_img1,blob_img);
-    blob_img = rgb2gray(blob_img);
-    blob_img = double(blob_img);
+    %blob_img = imfuse(blob_img1,blob_img);
+    %blob_img = rgb2gray(blob_img);
+    %blob_img = double(blob_img);
+    %blob_img = imopen(blob_img, strel('disk',4)); %TEST
+    %blob_img(450:600,:) = 0; %REMOVE
+    %blob_img(1:85,:) = 0; %REMOVE
+    %blob_img(735:800,:) = 0; %REMOVE
+    %%Finds peak indices for blobs
+    %[~,imax,~,~] = extrema2(blob_img); 
     
-    %Finds peak indices for blobs
-    [~,imax,~,~] = extrema2(blob_img); 
-    
+    %%%%%TEST NO OUTSIDE DETECTION
+    blob_img = blob_img1; %TEST
+    [~,imax,~,~] = extrema2(blob_img); %TEST
 
     %Section for auto threshold based on number of expected detections
 %     thresh = 0.040;
@@ -98,16 +113,22 @@ for i = 1:numFrames-(s_frame-1)
     
     %Gives error if poor detections (likley due to tadpoles not moving)
     init_det = length(X{1});
+    disp(length(X{i}));
     if length(X{i}) < (init_det/2)
-        error('Too few detections')
+        %error('Too few detections') #TO UNCOMMENT
     end
-    
+    disp(i) %TO REMOVE
+    if numTads < length(X{i})
+        numTads = length(X{i});
+    end
     %Displays progress of detection process
     if i == (round((numFrames-(s_frame-1))/2))
         disp('Tadpole detection is 50% complete')
     elseif i == (numFrames-(s_frame-1))
         disp('Tadpole detection is 100% complete')  
     end
+    
+    tmpB(:,:,i) = blob_img;
     
 end
 
@@ -146,7 +167,7 @@ Q_loc_estimateY = nan(2000);
 Q_loc_estimateX = nan(2000);
 %numDet = size(X{1},1); %number of detections
 numF = find(isnan(Q_est(1,:))==1, 1)-1; %number of estimates
-
+    disp(numF) %TO REMOVE
 for t = 1:length(X)
     
     %load detections matrix
@@ -226,9 +247,10 @@ save('position_estimates.mat','Q_loc_estimateX','Q_loc_estimateY')
 %% Removing Bad Detections
 
 %detections out of video boundary are given nan values
-for i = 1:length(Q_loc_estimateX(1,:))
-    removeX = find(Q_loc_estimateX(:,i)<0 | Q_loc_estimateX(:,i)>vidH);
-    removeY = find(Q_loc_estimateY(:,i)<0 | Q_loc_estimateY(:,i)>vidW);
+for i = 1:length(Q_loc_estimateX(1,:)) % i = 1:length(Q_loc_estimateX(1,:))
+    %removeX = find(Q_loc_estimateX(:,i)<Q_loc_estimateX(1,i) - 50 | Q_loc_estimateX(:,i)>Q_loc_estimateX(1,i) + 50);%find(Q_loc_estimateX(:,i)<0 | Q_loc_estimateX(:,i)>vidH);
+    removeX = find(Q_loc_estimateX(:,i)<50 | Q_loc_estimateX(:,i)>550);
+    removeY = find(Q_loc_estimateY(:,i)<50 | Q_loc_estimateY(:,i)>770);%find(Q_loc_estimateY(:,i)<0 | Q_loc_estimateY(:,i)>vidW);
     
     Q_loc_estimateX(removeX,i) = nan;
     Q_loc_estimateY(removeY,i) = nan;
@@ -237,18 +259,18 @@ end
 %% Tracking of Dots Returning Radii/Centers 
 
 %values cropping movie for channel system (xright = 1280)
-ytop = 150;
-ybott = 900;
-xleft = 90;
-xright = 1260;
+ytop = 60; %150
+ybott = 550; %900, 500 for 6 lanes
+xleft = 50; %90
+xright = 750; %1260
 
 % prealocate cells for dot position storage
 allcenter = cell(1,numFrames); %X,Y coordinate centers of dots index
 allradius = cell(1,numFrames); %radius of each detected dot 
 dotzeros = uint8(zeros(vidH,vidW));
-dotLoopLength = length(90:numFrames);
+dotLoopLength = length(noDotFrames:numFrames);
 
-for i = 90:numFrames
+for i = noDotFrames:numFrames
     orig_img = read(mov,i);
     orig_img = rgb2gray(orig_img);
     croped_orig = orig_img(ytop:ybott,xleft:xright,:);
@@ -256,12 +278,12 @@ for i = 90:numFrames
     backg = uint8(bck_img(ytop:ybott,xleft:xright,:));
     minus_bck = croped_orig - backg;
     adj_mius = imadjust(minus_bck);
-    str_mius = imopen(adj_mius, strel('disk',4));
+    str_mius = imopen(adj_mius, strel('disk',imopenThreshold)); %Erodes then dilates the dots %CHANGED FROM 4
     str_mius = str_mius*2;
     dotzeros(ytop:ybott,xleft:xright) = str_mius;
 
-    [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[10 20],...
-        'ObjectPolarity','bright', 'Sensitivity',0.91);
+    [allcenter{i}, allradius{i}] = imfindcircles(dotzeros,[imfindcirclesMin imfindcirclesMax],...
+        'ObjectPolarity','bright', 'Sensitivity',imfindcirclesSensitivity); %Sensitivity was 0.91
     
     if i == (round(dotLoopLength*0.25))
         disp('Dot detection is 25% complete')
@@ -312,8 +334,8 @@ clipRadius = allradius(idx_clip);
 [frme, tads] = size(clippedX);
 
 %difference tadpole is currently at 
-xdiff1 = clippedX(1:length(clippedX)-1,:) - clippedX(2:length(clippedX),:);
-ydiff1 = clippedY(1:length(clippedY)-1,:) - clippedY(2:length(clippedY),:);
+xdiff1 = clippedX(1:size(clippedX,1)-1,:) - clippedX(2:size(clippedX),:);
+ydiff1 = clippedY(1:size(clippedY,1)-1,:) - clippedY(2:size(clippedY),:);
 
 %gets angles between X(2:n,:) - X(1:n-1,:) and Y_diff
 tad_angles1 = atan2d(xdiff1, ydiff1);
@@ -400,7 +422,7 @@ logicaltad2 = ((tad_angles2 >= 0) & (tad_angles2 <= 15)) | ((tad_angles2 >= 165)
 within2fr = logicaltad2.*logicaltad1;
 
 %checks velocity of tadpole
-f_rate = 15; %f/s
+f_rate = 30; %f/s (recorded at 28.1 fps, plays back at 30 fps on this computer)
 t_disp = 1/f_rate; %sec (time between frames)
 
 Vx = xdiff1./t_disp;
@@ -425,16 +447,27 @@ actualEncounters = encounterMatrix.*within2frAndVelocity;
 
 actualFramesAndEncount = [((1:frme)+(idx_clip(1)-1))' actualEncounters];
 
-%removes last 8 encounters
-remFrames = any(actualFramesAndEncount((frme-8):frme(end),2:end) == 1);
-remIdx = find(remFrames == 1);
-actualFramesAndEncount((frme-8):frme(end),(remIdx+1)) = 0;
+%removes last 16 encounters
+actualFramesAndEncount((frme-16):frme(end),2:end) = 0;
+
+%removes double encounters within 4 frames of one another
+for t = 2:length(actualFramesAndEncount(1,:))
+  for i = 1:frme-3
+    remFrames = actualFramesAndEncount((i):(i+3),t) == 1; %Moving window of 4 frames...
+    if (sum(remFrames) > 1) %If more than one "actual" encounter in this window...
+      remIdx = find(remFrames == 1);
+      remIdx = remIdx(2:end); %Exclude first encounter in this window
+      remIdx = remIdx + i - 1;
+      actualFramesAndEncount(remIdx,t) = 0; %Only keep the first "actual" encounter
+    end
+  end
+end
 
 %% Event Detection 
 
 %need to know if tadpoles angle changed between 90 and 180 degrees of where
-%encounter occured within 8 frames
-% look at frame where encounter happened + 8 frames 
+%encounter occured within 16 frames
+% look at frame where encounter happened + 16 frames 
 
 for i = 2:length(actualFramesAndEncount(1,:))
     
@@ -444,8 +477,8 @@ for i = 2:length(actualFramesAndEncount(1,:))
     enc_pointX = clippedX(encounter,i-1);
     enc_pointY = clippedY(encounter,i-1);
 
-    %points from encounter frame (n) to 8 frames in future
-    future_points = encounter+(1:8);
+    %points from encounter frame (n) to 16 frames in future
+    future_points = encounter+(1:16);
     [r,c] = size(future_points);
     
     fut_pointX = zeros(r,c);
@@ -464,7 +497,7 @@ for i = 2:length(actualFramesAndEncount(1,:))
     event_diffX = diff(a);
     event_diffY = diff(b);
 
-    %angle between encounter frame (n) and future frame (n+(1:8))
+    %angle between encounter frame (n) and future frame (n+(1:16))
     event_angle = atan2d(event_diffX,event_diffY);
     event_angle = abs(event_angle);
 
